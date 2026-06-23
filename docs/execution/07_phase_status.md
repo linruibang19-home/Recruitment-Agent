@@ -25,10 +25,11 @@
 环境备注：
 
 - Python Playwright 自带 Chromium 下载超时，截图自检改用本机 Chrome 可执行文件。
+- 已尝试 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright`，但当前 Playwright 版本所需的 Chrome for Testing 资源在镜像上返回 404。
+- 后续自动化优先使用本机 Chrome：通过 `CHROME_EXECUTABLE_PATH` 和 `PLAYWRIGHT_BROWSER_CHANNEL=chrome` 配置。
 - 全局 Python 环境存在部分历史包冲突提示，后续开发建议使用项目虚拟环境。
 
 下一阶段：
 
 - Phase 2: PostgreSQL 数据层。
 - 建立 SQLAlchemy models、Alembic migrations、数据库初始化说明和基础 CRUD API。
-

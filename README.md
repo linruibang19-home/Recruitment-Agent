@@ -64,6 +64,13 @@ http://127.0.0.1:5173
 copy .env.example .env
 ```
 
+Playwright 可以使用自带 Chromium，也可以使用本机 Chrome。当前推荐使用本机 Chrome：
+
+```text
+CHROME_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+PLAYWRIGHT_BROWSER_CHANNEL=chrome
+```
+
 ## 当前阶段边界
 
 Phase 1 只交付新架构骨架：
@@ -74,4 +81,3 @@ Phase 1 只交付新架构骨架：
 - Git 和文档治理
 
 BOSS 页面自动化、PostgreSQL 数据模型、简历解析、LangGraph 工作流将在后续阶段按文档推进。
-

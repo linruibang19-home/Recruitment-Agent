@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     )
     boss_base_url: str = "https://www.zhipin.com"
     chrome_user_data_dir: str = ""
+    chrome_executable_path: str = ""
+    playwright_browser_channel: str = "chrome"
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
 
@@ -29,4 +31,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-
