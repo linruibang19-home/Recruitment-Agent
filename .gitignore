@@ -25,6 +25,9 @@ node_modules/
 dist/
 build/
 .next/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # IDE
 .vscode/

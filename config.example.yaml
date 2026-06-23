@@ -1,0 +1,18 @@
+automation:
+  max_daily_greetings: 50
+  max_hourly_greetings: 10
+  auto_accept_resume: true
+  auto_parse_resume: true
+  auto_request_resume: false
+  auto_invite_interview: false
+
+risk_control:
+  stop_on_captcha: true
+  stop_on_login_required: true
+  stop_on_send_failure_count: 3
+
+storage:
+  resume_dir: data/resumes
+  screenshot_dir: data/screenshots
+  log_dir: data/logs
+

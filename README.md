@@ -1,65 +1,77 @@
-# Boss 直聘招聘 Agent
+# Recruitment Agent
 
-一个后台常驻的招聘自动化 Agent:每日以拟人化节奏在 Boss 直聘上筛选候选人、个性化打招呼、监听回复、解析简历、生成画像与评分、自主跟进直到约上面试。
+一个本地运行的招聘 Agent 控制台，用于辅助 BOSS 直聘企业端候选人沟通、简历收集、简历解析、候选人画像、岗位匹配评分和每日推荐。
 
-> 这套代码同时是**学习 Agent 开发**的练手项目。每个模块练哪种 Agent 能力,见 [`docs/DESIGN.md`](docs/DESIGN.md) 第 3 节。
+当前处于 Phase 1：基础架构重构。旧 CLI 原型已移除，项目正在迁移到 `FastAPI + React + PostgreSQL + Playwright + LangGraph` 架构。
 
-## 快速开始
+## 文档
 
-### 1. 装依赖
+执行文档位于 [docs/execution](docs/execution/README.md)。
+
+关键文档：
+
+- [需求范围](docs/execution/01_requirements.md)
+- [业务架构](docs/execution/02_business_architecture.md)
+- [技术架构](docs/execution/03_technical_architecture.md)
+- [阶段计划](docs/execution/04_delivery_plan.md)
+- [风控策略](docs/execution/05_risk_control.md)
+- [Git 工作流](docs/execution/06_git_workflow.md)
+
+## 项目结构
+
+```text
+backend/        FastAPI 后端
+frontend/       React + Vite 前端
+docs/execution/ 项目执行文档
+data/           本地运行数据，默认不进入 Git
+```
+
+## 后端启动
 
 ```bash
-cd D:/Dev/Intership/HermesAgent-project/recruitment_agent
+cd backend
 python -m venv .venv
-.venv/Scripts/activate          # Windows bash
+.venv/Scripts/activate
 pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 2. 配置
+健康检查：
+
+```text
+http://127.0.0.1:8000/api/health
+```
+
+## 前端启动
 
 ```bash
-cp .env.example .env
-# 编辑 .env,填入 DEEPSEEK_API_KEY
+cd frontend
+npm install
+npm run dev
 ```
 
-主配置在 [`config.yaml`](config.yaml):筛选条件、额度(默认 80/天)、招呼时段、评分权重、Obsidian vault 路径。日常你主要改这一个文件。
+默认地址：
 
-### 3. 初始化数据库
+```text
+http://127.0.0.1:5173
+```
+
+## 环境变量
+
+复制 `.env.example` 为 `.env` 并按本机环境修改。`.env` 不会进入 Git。
 
 ```bash
-cd src
-python -c "import db; print('db ok')"
+copy .env.example .env
 ```
 
-### 4. 运行
+## 当前阶段边界
 
-```bash
-# 在 src/ 目录下:
-python cli.py run          # 启动常驻调度器(推荐)
-python cli.py daily        # 只跑一次每日打招呼
-python cli.py watch        # 只跑一次巡检
-python cli.py top 10       # 看评分 Top 10
-python cli.py show <boss_id>
-python cli.py faq add "公司多少人" "我们 200 人左右,AI 方向"
-```
+Phase 1 只交付新架构骨架：
 
-> ⚠️ **首次运行需要扫码登录 Boss**。建议在 `.env` 配 `CHROME_USER_DATA_DIR` 指向你常用的 Chrome profile,以保持登录态。
+- 后端健康检查接口
+- 前端控制台首屏
+- 基础配置结构
+- Git 和文档治理
 
-## 目录结构
+BOSS 页面自动化、PostgreSQL 数据模型、简历解析、LangGraph 工作流将在后续阶段按文档推进。
 
-见 [`docs/DESIGN.md`](docs/DESIGN.md) 第 6 节。
-
-## 还需要对接的部分(标 `TODO(对接Boss)`)
-
-骨架已完整,但以下几处需要用真实 Boss 页面调试后填实现:
-
-- `browser_session.read_current_card()`:解析候选人卡片 DOM
-- `browser_session.send_message()`:定位输入框并发送
-- `screener._fetch_candidate_cards()`:打开搜索页抓卡片列表
-- `watcher._fetch_new_messages()`:从消息页抓新回复
-
-这些是 browser-use 对接真实页面必经的调试环节,无法凭空写死(页面结构会变)。
-
-## 封号风险须知
-
-全自动打招呼有账号被封风险。本项目用 80/天上限 + 拟人化时序 + 风控刹车来降低风险,但**不保证不被封**。建议先用小号/测试账号验证一周,再上主力账号。详见 `docs/DESIGN.md` 第 5 节。

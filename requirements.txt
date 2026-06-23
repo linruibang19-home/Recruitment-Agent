@@ -1,7 +1,2 @@
-browser-use>=0.1.40
-openai>=1.30.0          # DeepSeek 兼容 OpenAI SDK,直接用 openai 调
-PyMuPDF>=1.24.0         # PDF 文本抽取
-PyYAML>=6.0
-APScheduler>=3.10.0     # 定时调度
-python-dotenv>=1.0.0    # 读 .env
-pydantic>=2.0           # 结构化校验
+-r backend/requirements.txt
+
