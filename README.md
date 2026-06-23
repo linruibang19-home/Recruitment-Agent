@@ -71,13 +71,33 @@ CHROME_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
 PLAYWRIGHT_BROWSER_CHANNEL=chrome
 ```
 
+## 数据库
+
+数据库初始化和迁移说明见 [docs/execution/08_database_setup.md](docs/execution/08_database_setup.md)。
+
+核心命令：
+
+```bash
+cd backend
+python -m alembic -c alembic.ini upgrade head
+```
+
 ## 当前阶段边界
 
-Phase 1 只交付新架构骨架：
+当前已完成 Phase 1 基础架构和 Phase 2 数据层代码。数据库实连需要 `.env` 中的 `DATABASE_URL` 与本机 PostgreSQL 密码一致。
+
+Phase 1 已交付：
 
 - 后端健康检查接口
 - 前端控制台首屏
 - 基础配置结构
 - Git 和文档治理
 
-BOSS 页面自动化、PostgreSQL 数据模型、简历解析、LangGraph 工作流将在后续阶段按文档推进。
+Phase 2 已交付：
+
+- SQLAlchemy 数据模型
+- Alembic 初始迁移
+- 岗位和候选人基础 CRUD API
+- 数据库健康检查
+
+BOSS 页面自动化、简历解析、评分推荐和 LangGraph 工作流将在后续阶段按文档推进。
