@@ -80,3 +80,39 @@
 cd backend
 python -m alembic -c alembic.ini upgrade head
 ```
+
+## Phase 3 Status
+
+状态：完成前端控制台真实 API 接入。
+
+完成内容：
+
+- 前端新增 API client。
+- Dashboard 并行读取 `/api/health/database`、`/api/jobs`、`/api/candidates`。
+- 指标卡、候选人流程、自动化健康、候选人库切换为真实后端数据。
+- 增加刷新按钮和失败兜底状态。
+- 保留本地 fallback 数据，避免 API 不可用时页面空白。
+
+自检结果：
+
+- PostgreSQL 实连：通过。
+- Alembic 迁移：通过。
+- `/api/health/database`: `ok`。
+- `/api/jobs`: 1 条烟测岗位。
+- `/api/candidates`: 1 条烟测候选人。
+- `npm run build`: 通过。
+- Playwright + 本机 Chrome 桌面截图：通过。
+- Playwright + 本机 Chrome 移动截图：通过。
+- 刷新按钮交互：通过。
+- 浏览器控制台错误：无。
+
+环境备注：
+
+- 当前 `.env` 已使用本机 PostgreSQL `postgres` 用户连接。
+- 用户提供的 `root` 用户认证失败；实际可用的是 `postgres` 用户配合同一密码。
+- 密码包含 `#`，在 `DATABASE_URL` 中必须写成 `%23`。
+
+下一阶段：
+
+- Phase 4: BOSS 沟通页读取和简历附件识别。
+- 实现 Playwright 持久化浏览器会话、沟通页列表读取、聊天详情读取、附件卡片识别和审计截图。

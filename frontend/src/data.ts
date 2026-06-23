@@ -18,27 +18,27 @@ export const pipeline: PipelineStage[] = [
 export const candidates: Candidate[] = [
   {
     name: "傅俊溪",
-    role: "Agent 应用开发实习生",
-    education: "硕士 · 湖南师范大学",
-    match: 91,
+    current_role: "Agent 应用开发实习生",
+    education_level: "硕士",
+    school: "湖南师范大学",
     status: "待约面",
-    skills: ["Python", "RAG", "LangChain"]
+    raw_card: { skills: ["Python", "RAG", "LangChain"] }
   },
   {
     name: "阮心一",
-    role: "Agent 应用开发实习生",
-    education: "本科 · 软件工程",
-    match: 86,
+    current_role: "Agent 应用开发实习生",
+    education_level: "本科",
+    school: "软件工程",
     status: "待人工确认",
-    skills: ["SpringBoot", "Python", "LLM"]
+    raw_card: { skills: ["SpringBoot", "Python", "LLM"] }
   },
   {
     name: "吕添健",
-    role: "后端开发实习生",
-    education: "本科 · 人工智能",
-    match: 82,
+    current_role: "后端开发实习生",
+    education_level: "本科",
+    school: "人工智能",
     status: "已评分",
-    skills: ["Python", "FastAPI", "数据分析"]
+    raw_card: { skills: ["Python", "FastAPI", "数据分析"] }
   }
 ];
 
@@ -53,4 +53,3 @@ export const runEvents: RunEvent[] = [
   { label: "PostgreSQL", status: "planned", detail: "Phase 2 建模和迁移" },
   { label: "LangGraph", status: "planned", detail: "Phase 8 接入工作流" }
 ];
-

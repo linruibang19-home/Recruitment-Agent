@@ -10,12 +10,18 @@ export type PipelineStage = {
 };
 
 export type Candidate = {
+  id?: number;
+  boss_uid?: string | null;
+  source?: string;
   name: string;
-  role: string;
-  education: string;
-  match: number;
+  current_role?: string | null;
+  education_level?: string | null;
+  school?: string | null;
+  major?: string | null;
+  graduation_year?: number | null;
+  candidate_type?: string | null;
   status: string;
-  skills: string[];
+  raw_card?: Record<string, unknown>;
 };
 
 export type ActionItem = {
@@ -31,3 +37,17 @@ export type RunEvent = {
   detail: string;
 };
 
+export type Job = {
+  id: number;
+  title: string;
+  city?: string | null;
+  keywords: string[];
+  is_active: boolean;
+};
+
+export type PageResponse<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};

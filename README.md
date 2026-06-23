@@ -1,8 +1,8 @@
 # Recruitment Agent
 
-一个本地运行的招聘 Agent 控制台，用于辅助 BOSS 直聘企业端候选人沟通、简历收集、简历解析、候选人画像、岗位匹配评分和每日推荐。
+本地运行的招聘 Agent 控制台，用于辅助 BOSS 直聘企业端候选人沟通、简历收集、简历解析、候选人画像、岗位匹配评分和每日推荐。
 
-当前处于 Phase 1：基础架构重构。旧 CLI 原型已移除，项目正在迁移到 `FastAPI + React + PostgreSQL + Playwright + LangGraph` 架构。
+当前架构：`FastAPI + React + PostgreSQL + Playwright + LangGraph`。
 
 ## 文档
 
@@ -16,6 +16,7 @@
 - [阶段计划](docs/execution/04_delivery_plan.md)
 - [风控策略](docs/execution/05_risk_control.md)
 - [Git 工作流](docs/execution/06_git_workflow.md)
+- [数据库初始化](docs/execution/08_database_setup.md)
 
 ## 项目结构
 
@@ -40,6 +41,7 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ```text
 http://127.0.0.1:8000/api/health
+http://127.0.0.1:8000/api/health/database
 ```
 
 ## 前端启动
@@ -64,6 +66,15 @@ http://127.0.0.1:5173
 copy .env.example .env
 ```
 
+数据库连接示例：
+
+```text
+DATABASE_URL=postgresql+psycopg://postgres:<password>@localhost:5432/recruitment_agent
+VITE_API_BASE_URL=http://127.0.0.1:8000/api
+```
+
+如果密码包含 `#`，需要写成 `%23`。
+
 Playwright 可以使用自带 Chromium，也可以使用本机 Chrome。当前推荐使用本机 Chrome：
 
 ```text
@@ -82,22 +93,24 @@ cd backend
 python -m alembic -c alembic.ini upgrade head
 ```
 
-## 当前阶段边界
+## 当前阶段
 
-当前已完成 Phase 1 基础架构和 Phase 2 数据层代码。数据库实连需要 `.env` 中的 `DATABASE_URL` 与本机 PostgreSQL 密码一致。
+已完成：
 
-Phase 1 已交付：
+- Phase 1: 基础架构重构
+- Phase 2: PostgreSQL 数据层
+- Phase 3: 前端控制台接入真实 API
 
-- 后端健康检查接口
-- 前端控制台首屏
-- 基础配置结构
-- Git 和文档治理
+Phase 3 已交付：
 
-Phase 2 已交付：
+- 前端 Dashboard 读取真实后端 API
+- 数据库状态、岗位数量、候选人数量、候选人库展示
+- 刷新按钮和 API 失败兜底状态
 
-- SQLAlchemy 数据模型
-- Alembic 初始迁移
-- 岗位和候选人基础 CRUD API
-- 数据库健康检查
+后续阶段：
 
-BOSS 页面自动化、简历解析、评分推荐和 LangGraph 工作流将在后续阶段按文档推进。
+- Phase 4: BOSS 沟通页读取和简历附件识别
+- Phase 5: 简历解析、画像和评分
+- Phase 6: 每日推荐和约面草稿
+- Phase 7: 推荐牛人筛选和主动触达
+- Phase 8: LangGraph 工作流和人审闭环

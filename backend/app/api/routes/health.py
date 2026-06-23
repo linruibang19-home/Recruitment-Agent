@@ -14,7 +14,7 @@ def health_check() -> dict:
         "status": "ok",
         "service": settings.app_name,
         "environment": settings.app_env,
-        "phase": "phase-2-data-layer",
+        "phase": "phase-3-dashboard-api",
         "database_configured": bool(settings.database_url),
         "boss_base_url": settings.boss_base_url,
         "time": datetime.now(timezone.utc).isoformat(),
