@@ -1,0 +1,84 @@
+# ============================================================
+# Boss 直聘招聘 Agent 配置
+# 你日常主要编辑这一个文件就够了。
+# 修改后无需重启,Agent 下一次调度时会重新读取。
+# ============================================================
+
+# ---------- 平台与额度 ----------
+boss:
+  base_url: "https://www.zhipin.com/"
+  # 每日打招呼上限。贴着 150 跑最容易被风控,80 是个"像活跃招聘者"的安全量。
+  daily_greet_limit: 80
+  # 单日内打招呼不要一次跑完,分散到这些时段(24h 制),模拟工作间隙。
+  greet_windows:
+    - "09:30-11:30"
+    - "14:00-17:30"
+    - "20:00-21:30"
+  # 行为拟人化参数(反风控核心,不要轻易调)
+  humanize:
+    # 打招呼间隔服从对数正态分布,均值约 45 秒,偶尔停顿 2-3 分钟"思考"。
+    greet_interval_mean_sec: 45
+    greet_interval_sigma: 0.6
+    long_pause_prob: 0.08        # 8% 概率插入一次长停顿
+    long_pause_range_sec: [120, 240]
+    # 无意义但"像人"的浏览动作
+    browse_distractions: ["scroll_list", "open_profile", "go_back", "hover_card"]
+    distraction_prob: 0.25
+
+# ---------- 巡检 ----------
+watcher:
+  # 每 N 分钟巡检一次 Boss 消息页,处理新回复。
+  poll_interval_min: 30
+  # 候选人 N 天没回复才发一次跟进,再无回复则放弃。
+  followup_after_days: 2
+  max_followups: 1
+
+# ---------- 筛选条件(这里改成你的实际岗位) ----------
+screening:
+  job_title: "AI产品经理"
+  city: "深圳"
+  experience: "3-5年"
+  education: "本科及以上"
+  salary_range: "20-40K"
+  industry_prefs: ["AI", "SaaS", "互联网"]
+  company_size: "50-500人"
+  # 技能匹配度低于此阈值则跳过,不占用额度。
+  skill_match_threshold: 0.6
+
+# ---------- LLM ----------
+llm:
+  provider: "deepseek"
+  model: "deepseek-chat"
+  # 从环境变量读取,不要写死在这里。见 .env.example。
+  api_key_env: "DEEPSEEK_API_KEY"
+  temperature: 0.7
+  max_tokens: 1500
+
+# ---------- 评分权重(和为 1.0) ----------
+scoring:
+  weights:
+    skill_match: 0.40
+    experience_match: 0.25
+    stability: 0.15
+    growth: 0.10
+    communication: 0.10
+  # 高于此分进入"高优先级深度跟进 + 主动约面"。
+  high_priority_threshold: 80
+  # 低于此分不主动跟进,仅入库。
+  low_priority_threshold: 55
+
+# ---------- 通知 ----------
+notify:
+  # 只支持 server酱/ Bark 这类 webhook 推送,填了就推,不填只写日志。
+  webhook_url: ""
+  # 需要你人工介入时(扫码、风控、需回复的棘手问题)是否推送。
+  on_human_required: true
+
+# ---------- 存储路径 ----------
+storage:
+  db_path: "data/candidates.db"
+  resumes_dir: "data/resumes"
+  profiles_dir: "data/profiles"
+  logs_dir: "data/logs"
+  # 如果你有 Obsidian vault,填它的路径,画像会同步成 Markdown 笔记。
+  obsidian_vault: ""

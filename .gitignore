@@ -1,0 +1,31 @@
+# Secrets and local runtime data
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+data/resumes/
+data/profiles/
+data/logs/
+data/exports/
+data/uploads/
+data/screenshots/
+data/tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Frontend
+node_modules/
+dist/
+build/
+.next/
+
+# IDE
+.vscode/
+.idea/
