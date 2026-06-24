@@ -161,3 +161,43 @@ export type ResumeProcessResult = {
   text_length: number;
   ocr_used: boolean;
 };
+
+export type Recommendation = {
+  id: number;
+  job_id: number;
+  job_title: string;
+  candidate_id: number;
+  candidate_name: string;
+  recommendation_date: string;
+  rank: number;
+  total_score: number;
+  reason?: string | null;
+  highlights: string[];
+  risks: string[];
+  action_id?: number | null;
+  action_status?: string | null;
+  interview_draft?: string | null;
+};
+
+export type RecommendationRun = {
+  recommendation_date: string;
+  jobs_processed: number;
+  recommendations_created: number;
+  drafts_created: number;
+  items: Recommendation[];
+};
+
+export type ActionQueueEntry = {
+  id: number;
+  candidate_id?: number | null;
+  candidate_name?: string | null;
+  job_id?: number | null;
+  job_title?: string | null;
+  action_type: string;
+  status: string;
+  risk_level: string;
+  draft_message?: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};

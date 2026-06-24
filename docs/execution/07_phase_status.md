@@ -224,3 +224,46 @@ python -m alembic -c alembic.ini upgrade head
 
 - Phase 6: 每日候选人推荐和约面草稿。
 - 按岗位生成 Top N、推荐理由、风险说明和待确认约面话术。
+
+## Phase 6 Status
+
+状态：完成每日推荐、约面草稿和人工审核闭环。
+
+完成内容：
+
+- 按启用岗位读取已评分候选人并生成 Top N。
+- 推荐结果包含总分、推荐理由、亮点和风险。
+- 达到阈值的候选人生成约面草稿。
+- 草稿以高风险动作进入 PostgreSQL 待确认队列。
+- 支持人工通过和拒绝，审核不触发发送。
+- 同日重复生成不会重复创建草稿。
+- 同日已拒绝草稿不会被重新创建。
+- 新增 APScheduler 每日 09:00 定时任务，使用 Asia/Shanghai 时区。
+- 新增前端“每日推荐”和真实“待确认”页面。
+
+新增 API：
+
+- `GET /api/recommendations/today`
+- `POST /api/recommendations/generate`
+- `GET /api/actions`
+- `POST /api/actions/{action_id}/approve`
+- `POST /api/actions/{action_id}/reject`
+
+自检结果：
+
+- `python -m compileall -q backend`: 通过。
+- `npm run build`: 通过。
+- 三名候选人按 92、78、60 分正确取 Top 2：通过。
+- 重复生成不重复创建约面草稿：通过。
+- 低于 70 分不生成约面草稿：通过。
+- 拒绝草稿后同日不重新创建：通过。
+- 人工通过和拒绝状态更新：通过。
+- 前端推荐生成、排名展示和审核交互：通过。
+- Playwright 桌面和移动端检查：通过。
+- 移动端无整页横向溢出。
+- 浏览器控制台错误和警告：无。
+
+下一阶段：
+
+- Phase 7: 推荐牛人筛选、卡片读取、打招呼草稿和每日额度。
+- 自动发送继续保持关闭，触达动作进入待确认队列。

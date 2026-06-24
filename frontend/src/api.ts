@@ -1,11 +1,14 @@
 import type {
   AuditLog,
+  ActionQueueEntry,
   BrowserStatus,
   Candidate,
   CandidateDetail,
   ChatScanResult,
   Job,
   PageResponse,
+  Recommendation,
+  RecommendationRun,
   ResumeProcessResult
 } from "./types";
 
@@ -30,15 +33,19 @@ export type DashboardData = {
   candidates: PageResponse<Candidate>;
   browser: BrowserStatus;
   auditLogs: PageResponse<AuditLog>;
+  recommendations: Recommendation[];
+  actions: PageResponse<ActionQueueEntry>;
 };
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const [databaseHealth, jobs, candidates, browser, auditLogs] = await Promise.all([
+  const [databaseHealth, jobs, candidates, browser, auditLogs, recommendations, actions] = await Promise.all([
     request<{ status: string }>("/health/database"),
     request<PageResponse<Job>>("/jobs?limit=20"),
     request<PageResponse<Candidate>>("/candidates?limit=20"),
     request<BrowserStatus>("/automation/browser/status"),
-    request<PageResponse<AuditLog>>("/audit-logs?limit=30")
+    request<PageResponse<AuditLog>>("/audit-logs?limit=30"),
+    request<Recommendation[]>("/recommendations/today"),
+    request<PageResponse<ActionQueueEntry>>("/actions?limit=50")
   ]);
 
   return {
@@ -46,7 +53,9 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     jobs,
     candidates,
     browser,
-    auditLogs
+    auditLogs,
+    recommendations,
+    actions
   };
 }
 
@@ -87,5 +96,30 @@ export function uploadResume(
   return request<ResumeProcessResult>(`/candidates/${candidateId}/resumes${query}`, {
     method: "POST",
     body: formData
+  });
+}
+
+export function generateRecommendations(
+  jobId?: number,
+  topN = 5
+): Promise<RecommendationRun> {
+  return request<RecommendationRun>("/recommendations/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      job_id: jobId,
+      top_n: topN,
+      create_interview_drafts: true
+    })
+  });
+}
+
+export function decideAction(
+  actionId: number,
+  decision: "approve" | "reject",
+  note?: string
+): Promise<ActionQueueEntry> {
+  return request<ActionQueueEntry>(`/actions/${actionId}/${decision}`, {
+    method: "POST",
+    body: JSON.stringify({ note: note ?? null })
   });
 }

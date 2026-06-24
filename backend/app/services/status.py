@@ -5,5 +5,6 @@ def foundation_capabilities() -> list[dict[str, str]]:
         {"name": "PostgreSQL data layer", "status": "ready"},
         {"name": "Playwright browser worker", "status": "ready"},
         {"name": "Resume parsing and scoring", "status": "ready"},
+        {"name": "Daily recommendations", "status": "ready"},
         {"name": "LangGraph workflows", "status": "planned"},
     ]

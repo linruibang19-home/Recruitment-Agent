@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
+  Award,
   Bot,
   BriefcaseBusiness,
   CheckCircle2,
@@ -20,11 +21,15 @@ import {
   Settings,
   ShieldCheck,
   Square,
+  ThumbsDown,
+  ThumbsUp,
   Users
 } from "lucide-react";
 import {
+  decideAction,
   fetchCandidateDetail,
   fetchDashboardData,
+  generateRecommendations,
   openChat,
   scanChats,
   startBrowser,
@@ -32,23 +37,34 @@ import {
   uploadResume,
   type DashboardData
 } from "./api";
-import { actionQueue, candidates as fallbackCandidates, runEvents } from "./data";
+import { candidates as fallbackCandidates, runEvents } from "./data";
 import type {
+  ActionQueueEntry,
   BrowserStatus,
   Candidate,
   CandidateDetail,
   ChatScanResult,
   Job,
   Metric,
-  PipelineStage
+  PipelineStage,
+  Recommendation
 } from "./types";
 
-type ViewId = "dashboard" | "jobs" | "candidates" | "actions" | "automation" | "audit" | "settings";
+type ViewId =
+  | "dashboard"
+  | "jobs"
+  | "candidates"
+  | "recommendations"
+  | "actions"
+  | "automation"
+  | "audit"
+  | "settings";
 
 const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }> = [
   { id: "dashboard", label: "工作台", icon: LayoutDashboard },
   { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
   { id: "candidates", label: "候选人库", icon: Users },
+  { id: "recommendations", label: "每日推荐", icon: Award },
   { id: "actions", label: "待确认", icon: ListChecks },
   { id: "automation", label: "沟通采集", icon: Bot },
   { id: "audit", label: "审计日志", icon: ClipboardList }
@@ -58,6 +74,7 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   dashboard: { title: "招聘工作台", description: "查看岗位、候选人和自动化服务的当前状态。" },
   jobs: { title: "岗位管理", description: "维护招聘岗位及候选人匹配条件。" },
   candidates: { title: "候选人库", description: "查看已采集候选人的基础资料和处理进度。" },
+  recommendations: { title: "每日推荐", description: "按岗位查看高匹配候选人和约面建议。" },
   actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
   automation: { title: "沟通采集", description: "连接 BOSS 沟通页并执行只读信息采集。" },
   audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
@@ -139,7 +156,13 @@ function auditActionLabel(actionType: string): string {
     browser_start: "启动浏览器",
     browser_stop: "停止浏览器",
     chat_scan: "扫描沟通列表",
-    chat_open: "读取聊天详情"
+    chat_open: "读取聊天详情",
+    resume_process: "解析简历",
+    candidate_score: "候选人评分",
+    daily_recommendation: "生成每日推荐",
+    daily_recommendation_schedule: "定时每日推荐",
+    action_approved: "通过待确认动作",
+    action_rejected: "拒绝待确认动作"
   };
   return labels[actionType] ?? actionType;
 }
@@ -227,6 +250,11 @@ export function App() {
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
   const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [recommendationJobId, setRecommendationJobId] = useState<number | null>(null);
+  const [recommendationBusy, setRecommendationBusy] = useState(false);
+  const [recommendationNotice, setRecommendationNotice] = useState<string | null>(null);
+  const [actionBusyId, setActionBusyId] = useState<number | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -248,7 +276,10 @@ export function App() {
     if (!selectedJobId && data?.jobs.items[0]) {
       setSelectedJobId(data.jobs.items[0].id);
     }
-  }, [data?.jobs.items, selectedJobId]);
+    if (!recommendationJobId && data?.jobs.items[0]) {
+      setRecommendationJobId(data.jobs.items[0].id);
+    }
+  }, [data?.jobs.items, recommendationJobId, selectedJobId]);
 
   const selectCandidate = useCallback(async (candidate: Candidate) => {
     if (!candidate.id) {
@@ -289,6 +320,39 @@ export function App() {
       setResumeBusy(false);
     }
   }, [candidateDetail?.candidate.id, loadDashboard, resumeFile, selectedJobId]);
+
+  const runRecommendations = useCallback(async () => {
+    setRecommendationBusy(true);
+    setRecommendationNotice(null);
+    try {
+      const result = await generateRecommendations(recommendationJobId ?? undefined);
+      await loadDashboard();
+      setRecommendationNotice(
+        `已生成 ${result.recommendations_created} 条推荐，新增 ${result.drafts_created} 条约面草稿。`
+      );
+    } catch (err) {
+      setRecommendationNotice(err instanceof Error ? err.message : "生成推荐失败");
+    } finally {
+      setRecommendationBusy(false);
+    }
+  }, [loadDashboard, recommendationJobId]);
+
+  const reviewAction = useCallback(async (
+    actionId: number,
+    decision: "approve" | "reject"
+  ) => {
+    setActionBusyId(actionId);
+    setActionNotice(null);
+    try {
+      await decideAction(actionId, decision);
+      await loadDashboard();
+      setActionNotice(decision === "approve" ? "草稿已通过，仍未发送。" : "草稿已拒绝。");
+    } catch (err) {
+      setActionNotice(err instanceof Error ? err.message : "审核失败");
+    } finally {
+      setActionBusyId(null);
+    }
+  }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
     async (action: "start" | "stop" | "scan", candidateName?: string) => {
@@ -470,7 +534,11 @@ export function App() {
                 <CandidateTable candidates={visibleCandidates} />
               </article>
 
-              <ActionQueuePanel />
+              <ActionQueuePanel
+                actions={data?.actions.items.filter((item) => item.status === "pending").slice(0, 3) ?? []}
+                busyId={actionBusyId}
+                onDecision={(id, decision) => void reviewAction(id, decision)}
+              />
               <RuntimePanel />
             </section>
           </>
@@ -522,8 +590,26 @@ export function App() {
 
         {activeView === "actions" && (
           <section className="single-view">
-            <ActionQueuePanel full />
+            {actionNotice && <div className="automation-notice">{actionNotice}</div>}
+            <ActionQueuePanel
+              actions={data?.actions.items ?? []}
+              busyId={actionBusyId}
+              full
+              onDecision={(id, decision) => void reviewAction(id, decision)}
+            />
           </section>
+        )}
+
+        {activeView === "recommendations" && (
+          <RecommendationView
+            busy={recommendationBusy}
+            jobs={visibleJobs}
+            notice={recommendationNotice}
+            recommendations={data?.recommendations ?? []}
+            selectedJobId={recommendationJobId}
+            onGenerate={() => void runRecommendations()}
+            onJobChange={setRecommendationJobId}
+          />
         )}
 
         {activeView === "automation" && (
@@ -915,7 +1001,126 @@ function scoreDimensionLabel(key: string): string {
   return labels[key] ?? key;
 }
 
-function ActionQueuePanel({ full = false }: { full?: boolean }) {
+function RecommendationView({
+  recommendations,
+  jobs,
+  selectedJobId,
+  busy,
+  notice,
+  onJobChange,
+  onGenerate
+}: {
+  recommendations: Recommendation[];
+  jobs: Job[];
+  selectedJobId: number | null;
+  busy: boolean;
+  notice: string | null;
+  onJobChange: (jobId: number | null) => void;
+  onGenerate: () => void;
+}) {
+  const visible = selectedJobId
+    ? recommendations.filter((item) => item.job_id === selectedJobId)
+    : recommendations;
+
+  return (
+    <section className="single-view">
+      <article className="panel full">
+        <div className="recommendation-toolbar">
+          <div>
+            <h2>岗位候选人推荐</h2>
+            <p>根据已入库评分生成排名，约面话术只进入待确认队列。</p>
+          </div>
+          <div className="recommendation-controls">
+            <select
+              aria-label="推荐岗位"
+              onChange={(event) => onJobChange(event.target.value ? Number(event.target.value) : null)}
+              value={selectedJobId ?? ""}
+            >
+              <option value="">全部岗位</option>
+              {jobs.map((job) => (
+                <option key={job.id} value={job.id}>{job.title}</option>
+              ))}
+            </select>
+            <button
+              className="primary-button"
+              disabled={busy || !jobs.length}
+              onClick={onGenerate}
+              type="button"
+            >
+              <Award size={16} />
+              <span>{busy ? "生成中" : "生成今日推荐"}</span>
+            </button>
+          </div>
+        </div>
+        {notice && <div className="automation-notice">{notice}</div>}
+      </article>
+
+      {visible.length ? (
+        <div className="recommendation-list">
+          {visible.map((item) => (
+            <article className="recommendation-item" key={item.id}>
+              <div className="recommendation-rank">{item.rank}</div>
+              <div className="recommendation-body">
+                <div className="recommendation-title">
+                  <div>
+                    <h2>{item.candidate_name}</h2>
+                    <span>{item.job_title}</span>
+                  </div>
+                  <strong>{item.total_score.toFixed(0)} 分</strong>
+                </div>
+                <p className="recommendation-reason">{item.reason}</p>
+                <div className="recommendation-notes">
+                  <div>
+                    <span>亮点</span>
+                    <p>{item.highlights.length ? item.highlights.join("；") : "暂无额外亮点"}</p>
+                  </div>
+                  <div>
+                    <span>风险</span>
+                    <p>{item.risks.length ? item.risks.join("；") : "暂无明显风险"}</p>
+                  </div>
+                </div>
+                {item.interview_draft && (
+                  <div className="draft-preview">
+                    <div>
+                      <strong>约面草稿</strong>
+                      <span>{actionStatusLabel(item.action_status)}</span>
+                    </div>
+                    <p>{item.interview_draft}</p>
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">当前岗位暂无今日推荐。先完成简历评分，再生成推荐。</div>
+      )}
+    </section>
+  );
+}
+
+function actionStatusLabel(status?: string | null): string {
+  const labels: Record<string, string> = {
+    pending: "待确认",
+    approved: "已通过，未发送",
+    rejected: "已拒绝",
+    executed: "已执行",
+    failed: "执行失败"
+  };
+  return status ? labels[status] ?? status : "未生成";
+}
+
+function ActionQueuePanel({
+  actions,
+  busyId,
+  onDecision,
+  full = false
+}: {
+  actions: ActionQueueEntry[];
+  busyId: number | null;
+  onDecision: (actionId: number, decision: "approve" | "reject") => void;
+  full?: boolean;
+}) {
   return (
     <article className={full ? "panel full" : "panel"}>
       <div className="panel-header">
@@ -925,20 +1130,45 @@ function ActionQueuePanel({ full = false }: { full?: boolean }) {
         </div>
         <AlertTriangle size={20} />
       </div>
-      <div className="action-list">
-        {actionQueue.map((item) => (
-          <div className="action-row" key={`${item.title}-${item.candidate}`}>
-            <FileText size={18} />
-            <div>
-              <strong>{item.title}</strong>
-              <span>
-                {item.candidate} / {item.risk}
-              </span>
+      {actions.length ? (
+        <div className="action-list">
+          {actions.map((item) => (
+            <div className="action-review-row" key={item.id}>
+              <FileText size={18} />
+              <div>
+                <strong>{item.action_type === "interview_invite" ? "约面邀请" : item.action_type}</strong>
+                <span>{item.candidate_name ?? "未知候选人"} / {item.job_title ?? "未关联岗位"}</span>
+                {item.draft_message && <p>{item.draft_message}</p>}
+              </div>
+              <div className="action-review-status">
+                <span>{actionStatusLabel(item.status)}</span>
+                {item.status === "pending" && (
+                  <div>
+                    <button
+                      disabled={busyId !== null}
+                      onClick={() => onDecision(item.id, "approve")}
+                      title="通过草稿"
+                      type="button"
+                    >
+                      <ThumbsUp size={15} />
+                    </button>
+                    <button
+                      disabled={busyId !== null}
+                      onClick={() => onDecision(item.id, "reject")}
+                      title="拒绝草稿"
+                      type="button"
+                    >
+                      <ThumbsDown size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            <time>{item.time}</time>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">暂无待确认动作。</div>
+      )}
     </article>
   );
 }

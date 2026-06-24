@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str = ""
+    recommendation_top_n: int = 5
+    interview_invite_score_threshold: int = 70
+    recommendation_hour: int = 9
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
 
