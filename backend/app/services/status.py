@@ -2,8 +2,7 @@ def foundation_capabilities() -> list[dict[str, str]]:
     return [
         {"name": "FastAPI API", "status": "ready"},
         {"name": "React console", "status": "ready"},
-        {"name": "PostgreSQL data layer", "status": "planned"},
-        {"name": "Playwright browser worker", "status": "planned"},
+        {"name": "PostgreSQL data layer", "status": "ready"},
+        {"name": "Playwright browser worker", "status": "ready"},
         {"name": "LangGraph workflows", "status": "planned"},
     ]
-

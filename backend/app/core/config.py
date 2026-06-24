@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     chrome_user_data_dir: str = ""
     chrome_executable_path: str = ""
     playwright_browser_channel: str = "chrome"
+    browser_headless: bool = False
+    browser_scan_limit: int = 20
+    screenshot_dir: str = ""
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
 

@@ -51,3 +51,52 @@ export type PageResponse<T> = {
   limit: number;
   offset: number;
 };
+
+export type BrowserState = "stopped" | "starting" | "ready" | "login_required" | "blocked" | "error";
+
+export type BrowserStatus = {
+  state: BrowserState;
+  running: boolean;
+  current_url?: string | null;
+  page_title?: string | null;
+  detail?: string | null;
+};
+
+export type ChatSummary = {
+  name: string;
+  preview?: string | null;
+  unread_count: number;
+  href?: string | null;
+  raw_text: string;
+};
+
+export type AttachmentInfo = {
+  filename?: string | null;
+  attachment_type: string;
+  preview_text?: string | null;
+  href?: string | null;
+};
+
+export type ChatDetail = {
+  candidate_name?: string | null;
+  messages: string[];
+  attachments: AttachmentInfo[];
+};
+
+export type ChatScanResult = {
+  scanned_at: string;
+  page_url: string;
+  conversations: ChatSummary[];
+  detail?: ChatDetail | null;
+  screenshot_path?: string | null;
+};
+
+export type AuditLog = {
+  id: number;
+  action_type: string;
+  status: string;
+  detail?: string | null;
+  screenshot_path?: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};

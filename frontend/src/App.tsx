@@ -10,13 +10,25 @@ import {
   FileText,
   LayoutDashboard,
   ListChecks,
+  LogIn,
+  Paperclip,
+  Play,
   RefreshCw,
+  ScanLine,
   ShieldCheck,
+  Square,
   Users
 } from "lucide-react";
-import { fetchDashboardData, type DashboardData } from "./api";
+import {
+  fetchDashboardData,
+  openChat,
+  scanChats,
+  startBrowser,
+  stopBrowser,
+  type DashboardData
+} from "./api";
 import { actionQueue, candidates as fallbackCandidates, runEvents } from "./data";
-import type { Candidate, Job, Metric, PipelineStage } from "./types";
+import type { BrowserStatus, Candidate, ChatScanResult, Job, Metric, PipelineStage } from "./types";
 
 type ViewId = "dashboard" | "jobs" | "candidates" | "actions" | "automation" | "audit";
 
@@ -87,6 +99,28 @@ function buildMetrics(data: DashboardData | null, candidates: Candidate[]): Metr
   ];
 }
 
+function browserStateLabel(status?: BrowserStatus | null): string {
+  const labels = {
+    stopped: "未启动",
+    starting: "启动中",
+    ready: "可扫描",
+    login_required: "等待登录",
+    blocked: "已安全停机",
+    error: "异常"
+  };
+  return status ? labels[status.state] : "未知";
+}
+
+function auditActionLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    browser_start: "启动浏览器",
+    browser_stop: "停止浏览器",
+    chat_scan: "扫描沟通列表",
+    chat_open: "读取聊天详情"
+  };
+  return labels[actionType] ?? actionType;
+}
+
 function CandidateTable({ candidates }: { candidates: Candidate[] }) {
   return (
     <div className="candidate-table">
@@ -140,6 +174,9 @@ export function App() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [automationBusy, setAutomationBusy] = useState<string | null>(null);
+  const [automationNotice, setAutomationNotice] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<ChatScanResult | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -157,6 +194,40 @@ export function App() {
     void loadDashboard();
   }, [loadDashboard]);
 
+  const runAutomationAction = useCallback(
+    async (action: "start" | "stop" | "scan", candidateName?: string) => {
+      setAutomationBusy(candidateName ? `open:${candidateName}` : action);
+      setAutomationNotice(null);
+      try {
+        if (action === "start") {
+          const status = await startBrowser();
+          setAutomationNotice(status.detail ?? "浏览器已启动");
+        } else if (action === "stop") {
+          const status = await stopBrowser();
+          setScanResult(null);
+          setAutomationNotice(status.detail ?? "浏览器已停止");
+        } else if (candidateName) {
+          const result = await openChat(candidateName);
+          setScanResult((current) => ({
+            ...result,
+            conversations: current?.conversations ?? []
+          }));
+          setAutomationNotice(`已读取 ${candidateName} 的聊天详情，未执行发送动作。`);
+        } else {
+          const result = await scanChats();
+          setScanResult(result);
+          setAutomationNotice(`已读取 ${result.conversations.length} 个会话，未执行发送动作。`);
+        }
+        await loadDashboard();
+      } catch (err) {
+        setAutomationNotice(err instanceof Error ? err.message : "自动化操作失败");
+      } finally {
+        setAutomationBusy(null);
+      }
+    },
+    [loadDashboard]
+  );
+
   const visibleCandidates = data?.candidates.items.length ? data.candidates.items : fallbackCandidates;
   const visibleJobs = data?.jobs.items ?? [];
   const metrics = useMemo(() => buildMetrics(data, visibleCandidates), [data, visibleCandidates]);
@@ -164,11 +235,16 @@ export function App() {
   const healthEvents = useMemo(
     () => [
       {
+        label: "浏览器会话",
+        status: data?.browser.state === "ready" ? ("ready" as const) : ("warning" as const),
+        detail: data?.browser.detail ?? "尚未启动"
+      },
+      {
         label: "PostgreSQL",
         status: data?.databaseStatus === "ok" ? ("ready" as const) : ("warning" as const),
         detail: data?.databaseStatus === "ok" ? "已连接" : "等待连接"
       },
-      ...runEvents.filter((event) => event.label !== "PostgreSQL")
+      ...runEvents.filter((event) => !["PostgreSQL", "浏览器会话"].includes(event.label))
     ],
     [data]
   );
@@ -211,7 +287,7 @@ export function App() {
         <header className="topbar">
           <div>
             <h1>招聘 Agent 控制台</h1>
-            <p>Phase 3 已接入真实后端 API 数据，后续自动化能力按阶段打开。</p>
+            <p>Phase 4 已接入 BOSS 沟通页只读扫描，所有发送动作仍需人工确认。</p>
           </div>
           <div className="topbar-actions">
             <div className={error ? "status-strip warning" : "status-strip"}>
@@ -342,18 +418,119 @@ export function App() {
             <article className="panel full">
               <div className="panel-header">
                 <div>
-                  <h2>自动化</h2>
-                  <p>浏览器自动化计划在 Phase 4 接入，当前页面仅展示接入状态。</p>
+                  <h2>浏览器自动化</h2>
+                  <p>使用独立 Chrome 登录态读取沟通列表、聊天详情和 PDF 附件卡片。</p>
                 </div>
                 <Bot size={20} />
               </div>
-              <div className="check-grid">
-                <span>系统 Chrome 已配置</span>
-                <span>每日主动触达上限：50</span>
-                <span>默认人工确认</span>
-                <span>BOSS 页面扫描：Phase 4</span>
+              <div className="automation-toolbar">
+                <div className={`browser-state state-${data?.browser.state ?? "stopped"}`}>
+                  <span className="status-dot" />
+                  <div>
+                    <strong>{browserStateLabel(data?.browser)}</strong>
+                    <small>{data?.browser.detail ?? "点击启动浏览器后手工登录 BOSS 直聘"}</small>
+                  </div>
+                </div>
+                <div className="automation-actions">
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || data?.browser.running}
+                    onClick={() => void runAutomationAction("start")}
+                    type="button"
+                  >
+                    {data?.browser.state === "login_required" ? <LogIn size={16} /> : <Play size={16} />}
+                    <span>启动浏览器</span>
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={automationBusy !== null || data?.browser.state !== "ready"}
+                    onClick={() => void runAutomationAction("scan")}
+                    type="button"
+                  >
+                    <ScanLine size={16} />
+                    <span>{automationBusy === "scan" ? "扫描中" : "扫描沟通列表"}</span>
+                  </button>
+                  <button
+                    className="icon-button"
+                    disabled={automationBusy !== null || !data?.browser.running}
+                    onClick={() => void runAutomationAction("stop")}
+                    title="停止浏览器会话"
+                    type="button"
+                  >
+                    <Square size={16} />
+                  </button>
+                </div>
+              </div>
+              {automationNotice && <div className="automation-notice">{automationNotice}</div>}
+              <div className="safety-strip">
+                <ShieldCheck size={18} />
+                <span>只读模式：不填写输入框、不发送消息；遇到登录、验证码或账号异常会停止扫描。</span>
               </div>
             </article>
+            <article className="panel full">
+              <div className="panel-header">
+                <div>
+                  <h2>沟通页扫描结果</h2>
+                  <p>点击候选人可读取当前聊天详情并识别附件，不会发送消息。</p>
+                </div>
+                <ScanLine size={20} />
+              </div>
+              {scanResult?.conversations.length ? (
+                <div className="conversation-list">
+                  {scanResult.conversations.map((conversation, index) => (
+                    <div className="conversation-row" key={`${conversation.name}-${index}`}>
+                      <div>
+                        <strong>{conversation.name}</strong>
+                        <span>{conversation.preview ?? conversation.raw_text}</span>
+                      </div>
+                      <button
+                        className="text-button"
+                        disabled={automationBusy !== null}
+                        onClick={() => void runAutomationAction("scan", conversation.name)}
+                        type="button"
+                      >
+                        {automationBusy === `open:${conversation.name}` ? "读取中" : "读取详情"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">启动浏览器并手工登录后，可执行只读扫描。</div>
+              )}
+            </article>
+            {scanResult?.detail && (
+              <article className="panel full">
+                <div className="panel-header">
+                  <div>
+                    <h2>{scanResult.detail.candidate_name ?? "当前候选人"}的聊天详情</h2>
+                    <p>读取到 {scanResult.detail.messages.length} 条消息和 {scanResult.detail.attachments.length} 个附件。</p>
+                  </div>
+                  <Paperclip size={20} />
+                </div>
+                <div className="detail-grid">
+                  <div>
+                    <strong>最近消息</strong>
+                    <div className="message-list">
+                      {scanResult.detail.messages.slice(-8).map((message, index) => (
+                        <span key={`${message}-${index}`}>{message}</span>
+                      ))}
+                      {!scanResult.detail.messages.length && <span>未识别到消息文本。</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <strong>附件识别</strong>
+                    <div className="message-list">
+                      {scanResult.detail.attachments.map((attachment, index) => (
+                        <span key={`${attachment.filename}-${index}`}>
+                          {attachment.filename ?? attachment.preview_text ?? "简历附件卡片"}
+                        </span>
+                      ))}
+                      {!scanResult.detail.attachments.length && <span>当前聊天未识别到 PDF 附件。</span>}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            )}
           </section>
         )}
 
@@ -363,11 +540,26 @@ export function App() {
               <div className="panel-header">
                 <div>
                   <h2>审计日志</h2>
-                  <p>PostgreSQL 已有审计日志表，自动化动作写入后再接入列表展示。</p>
+                  <p>浏览器启动、停止、扫描和聊天读取均写入 PostgreSQL。</p>
                 </div>
                 <ClipboardList size={20} />
               </div>
-              <div className="empty-state">暂无自动化审计事件。</div>
+              {data?.auditLogs.items.length ? (
+                <div className="audit-list">
+                  {data.auditLogs.items.map((entry) => (
+                    <div className="audit-row" key={entry.id}>
+                      <span className={`audit-status ${entry.status}`} />
+                      <div>
+                        <strong>{auditActionLabel(entry.action_type)}</strong>
+                        <small>{entry.detail ?? "无附加说明"}</small>
+                      </div>
+                      <time>{new Date(entry.created_at).toLocaleString("zh-CN")}</time>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">暂无自动化审计事件。</div>
+              )}
             </article>
           </section>
         )}
@@ -409,16 +601,16 @@ function SelfCheckPanel() {
     <article className="panel full">
       <div className="panel-header">
         <div>
-          <h2>Phase 3 自检</h2>
-          <p>本阶段验证真实 API 读取、数据库连接和刷新交互。</p>
+          <h2>Phase 4 自检</h2>
+          <p>验证浏览器状态、只读扫描、附件识别和审计日志链路。</p>
         </div>
         <Database size={20} />
       </div>
       <div className="check-grid">
         <span>GET /api/health/database</span>
-        <span>GET /api/jobs</span>
-        <span>GET /api/candidates</span>
-        <span>刷新交互</span>
+        <span>GET /api/automation/browser/status</span>
+        <span>POST /api/automation/chat/scan</span>
+        <span>GET /api/audit-logs</span>
       </div>
     </article>
   );

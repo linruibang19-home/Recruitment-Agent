@@ -1,0 +1,40 @@
+from typing import Any
+
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session
+
+from app.db.models import AuditLog
+
+
+def create_audit_log(
+    db: Session,
+    *,
+    action_type: str,
+    status: str,
+    detail: str | None = None,
+    screenshot_path: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> AuditLog:
+    entry = AuditLog(
+        action_type=action_type,
+        status=status,
+        detail=detail,
+        screenshot_path=screenshot_path,
+        payload=payload or {},
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+def list_audit_logs(
+    db: Session,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[AuditLog], int]:
+    stmt: Select[tuple[AuditLog]] = select(AuditLog)
+    total = db.scalar(select(func.count()).select_from(AuditLog)) or 0
+    items = list(db.scalars(stmt.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)))
+    return items, total

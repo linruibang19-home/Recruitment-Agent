@@ -100,16 +100,25 @@ python -m alembic -c alembic.ini upgrade head
 - Phase 1: 基础架构重构
 - Phase 2: PostgreSQL 数据层
 - Phase 3: 前端控制台接入真实 API
+- Phase 4: BOSS 沟通页只读扫描和附件识别
 
-Phase 3 已交付：
+Phase 4 已交付：
 
-- 前端 Dashboard 读取真实后端 API
-- 数据库状态、岗位数量、候选人数量、候选人库展示
-- 刷新按钮和 API 失败兜底状态
+- Playwright 独立 Worker 和持久化 Chrome 登录态
+- BOSS 沟通列表、指定聊天详情和 PDF 附件卡片读取
+- 自动化控制台和 PostgreSQL 审计日志
+- 登录、验证码、账号异常和页面限制安全停机
+- 全阶段保持只读，不填写输入框、不发送消息
+
+使用步骤：
+
+1. 打开前端 `http://127.0.0.1:5173/`，进入“自动化”。
+2. 点击“启动浏览器”，在独立 Chrome 窗口中手工登录 BOSS 直聘。
+3. 返回控制台刷新状态，状态为“可扫描”后点击“扫描沟通列表”。
+4. 点击候选人的“读取详情”识别消息和 PDF 附件卡片。
 
 后续阶段：
 
-- Phase 4: BOSS 沟通页读取和简历附件识别
 - Phase 5: 简历解析、画像和评分
 - Phase 6: 每日推荐和约面草稿
 - Phase 7: 推荐牛人筛选和主动触达

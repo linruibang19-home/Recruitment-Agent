@@ -49,7 +49,7 @@ export const actionQueue: ActionItem[] = [
 ];
 
 export const runEvents: RunEvent[] = [
-  { label: "浏览器会话", status: "planned", detail: "Phase 4 接入 Playwright" },
-  { label: "PostgreSQL", status: "planned", detail: "Phase 2 建模和迁移" },
+  { label: "浏览器会话", status: "ready", detail: "Playwright 只读扫描已接入" },
+  { label: "PostgreSQL", status: "ready", detail: "数据层已连接" },
   { label: "LangGraph", status: "planned", detail: "Phase 8 接入工作流" }
 ];
