@@ -176,3 +176,51 @@ python -m alembic -c alembic.ini upgrade head
 - 各模块使用独立页面标题和说明，不再统一显示阶段性开发文案。
 - 收紧字号、阴影、间距和面板密度，降低原型感。
 - 候选人表在 1134px 宽度下无需横向滚动。
+
+## Phase 5 Status
+
+状态：完成简历解析、候选人画像和岗位评分。
+
+完成内容：
+
+- 新增 PDF 上传、文件类型校验和 10 MB 大小限制。
+- 使用 PyMuPDF 提取原生文本。
+- 原生文本不足时使用 Tesseract OCR，支持中文和英文模型。
+- 新增本地规则结构化解析器。
+- 新增可配置 DeepSeek LLM 增强，默认关闭并对手机号、邮箱脱敏。
+- 提取学历、学校、专业、毕业年份、候选类型、技能、项目和工作年限。
+- 候选人画像、亮点、风险和摘要写入 PostgreSQL。
+- 新增 100 分制岗位评分及五个维度理由。
+- 新增候选人详情、简历上传、岗位选择、画像和评分前端页面。
+- 简历处理成功和失败均写入审计日志。
+
+新增 API：
+
+- `GET /api/candidates/{candidate_id}/detail`
+- `POST /api/candidates/{candidate_id}/resumes`
+- `POST /api/candidates/{candidate_id}/scores/{job_id}`
+
+自检结果：
+
+- `python -m compileall -q backend`: 通过。
+- `npm run build`: 通过。
+- 5 份不同格式文本型 PDF 解析：通过。
+- 五份简历均提取学校、专业、技能和项目经历：通过。
+- 五份简历岗位评分及维度理由：通过。
+- 扫描图片型 PDF 中文 OCR：通过。
+- OCR 结果识别学校、专业、毕业年份和技能：通过。
+- 前端 PDF 上传、解析、评分和详情展示：通过。
+- Playwright 桌面和移动端检查：通过。
+- 移动端无整页横向溢出。
+- 浏览器控制台错误和警告：无。
+
+环境备注：
+
+- 本机已安装 Tesseract 5.4。
+- 中文、英文和方向模型位于 `data/tessdata/`，不会进入 Git。
+- LLM 默认关闭；当前验收使用本地规则解析器，不依赖外部 API。
+
+下一阶段：
+
+- Phase 6: 每日候选人推荐和约面草稿。
+- 按岗位生成 Top N、推荐理由、风险说明和待确认约面话术。

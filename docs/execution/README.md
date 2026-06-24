@@ -12,6 +12,7 @@
 - [06_git_workflow.md](06_git_workflow.md): Git 管理、分支、提交、推送规范。
 - [07_phase_status.md](07_phase_status.md): 阶段执行状态和自检记录。
 - [08_database_setup.md](08_database_setup.md): PostgreSQL 初始化、迁移和连接检查。
+- [09_resume_processing.md](09_resume_processing.md): PDF、OCR、画像、LLM 增强和岗位评分。
 
 ## 执行原则
 

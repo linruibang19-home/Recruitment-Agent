@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     browser_headless: bool = False
     browser_scan_limit: int = 20
     screenshot_dir: str = ""
+    resume_dir: str = ""
+    tessdata_dir: str = ""
+    max_resume_size_mb: int = 10
+    llm_enabled: bool = False
+    llm_provider: str = "deepseek"
+    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://api.deepseek.com"
+    deepseek_api_key: str = ""
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
 

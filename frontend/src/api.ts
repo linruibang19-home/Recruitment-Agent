@@ -2,16 +2,19 @@ import type {
   AuditLog,
   BrowserStatus,
   Candidate,
+  CandidateDetail,
   ChatScanResult,
   Job,
-  PageResponse
+  PageResponse,
+  ResumeProcessResult
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: init?.body ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
+    headers: init?.body && !isFormData ? { "Content-Type": "application/json", ...init.headers } : init?.headers,
     ...init
   });
   if (!response.ok) {
@@ -66,5 +69,23 @@ export function openChat(candidateName: string): Promise<ChatScanResult> {
   return request<ChatScanResult>("/automation/chat/open", {
     method: "POST",
     body: JSON.stringify({ candidate_name: candidateName, capture_screenshot: true })
+  });
+}
+
+export function fetchCandidateDetail(candidateId: number): Promise<CandidateDetail> {
+  return request<CandidateDetail>(`/candidates/${candidateId}/detail`);
+}
+
+export function uploadResume(
+  candidateId: number,
+  file: File,
+  jobId?: number
+): Promise<ResumeProcessResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const query = jobId ? `?job_id=${jobId}` : "";
+  return request<ResumeProcessResult>(`/candidates/${candidateId}/resumes${query}`, {
+    method: "POST",
+    body: formData
   });
 }

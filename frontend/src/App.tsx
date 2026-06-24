@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  Eye,
   FileText,
+  FileUp,
   LayoutDashboard,
   ListChecks,
   LogIn,
@@ -21,15 +23,25 @@ import {
   Users
 } from "lucide-react";
 import {
+  fetchCandidateDetail,
   fetchDashboardData,
   openChat,
   scanChats,
   startBrowser,
   stopBrowser,
+  uploadResume,
   type DashboardData
 } from "./api";
 import { actionQueue, candidates as fallbackCandidates, runEvents } from "./data";
-import type { BrowserStatus, Candidate, ChatScanResult, Job, Metric, PipelineStage } from "./types";
+import type {
+  BrowserStatus,
+  Candidate,
+  CandidateDetail,
+  ChatScanResult,
+  Job,
+  Metric,
+  PipelineStage
+} from "./types";
 
 type ViewId = "dashboard" | "jobs" | "candidates" | "actions" | "automation" | "audit" | "settings";
 
@@ -132,23 +144,44 @@ function auditActionLabel(actionType: string): string {
   return labels[actionType] ?? actionType;
 }
 
-function CandidateTable({ candidates }: { candidates: Candidate[] }) {
+function CandidateTable({
+  candidates,
+  onSelect
+}: {
+  candidates: Candidate[];
+  onSelect?: (candidate: Candidate) => void;
+}) {
   return (
     <div className="candidate-table">
-      <div className="table-head">
+      <div className={onSelect ? "table-head candidate-action-head" : "table-head"}>
         <span>候选人</span>
         <span>学历/学校</span>
         <span>技能/专业</span>
         <span>来源</span>
         <span>状态</span>
+        {onSelect && <span>操作</span>}
       </div>
       {candidates.map((candidate, index) => (
-        <div className="table-row" key={candidate.id ?? `${candidate.name}-${index}`}>
+        <div
+          className={onSelect ? "table-row candidate-action-row" : "table-row"}
+          key={candidate.id ?? `${candidate.name}-${index}`}
+        >
           <strong>{candidate.name ?? "未命名"}</strong>
           <span>{candidateEducation(candidate)}</span>
           <span className="skill-list">{candidateSkills(candidate)}</span>
           <span>{sourceLabel(candidate.source)}</span>
           <span>{statusLabel(candidate.status)}</span>
+          {onSelect && (
+            <button
+              className="table-action"
+              disabled={!candidate.id}
+              onClick={() => onSelect(candidate)}
+              type="button"
+            >
+              <Eye size={15} />
+              <span>查看</span>
+            </button>
+          )}
         </div>
       ))}
     </div>
@@ -188,6 +221,12 @@ export function App() {
   const [automationBusy, setAutomationBusy] = useState<string | null>(null);
   const [automationNotice, setAutomationNotice] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<ChatScanResult | null>(null);
+  const [candidateDetail, setCandidateDetail] = useState<CandidateDetail | null>(null);
+  const [candidateDetailLoading, setCandidateDetailLoading] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [resumeBusy, setResumeBusy] = useState(false);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -204,6 +243,52 @@ export function App() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!selectedJobId && data?.jobs.items[0]) {
+      setSelectedJobId(data.jobs.items[0].id);
+    }
+  }, [data?.jobs.items, selectedJobId]);
+
+  const selectCandidate = useCallback(async (candidate: Candidate) => {
+    if (!candidate.id) {
+      return;
+    }
+    setCandidateDetailLoading(true);
+    setResumeNotice(null);
+    try {
+      setCandidateDetail(await fetchCandidateDetail(candidate.id));
+    } catch (err) {
+      setResumeNotice(err instanceof Error ? err.message : "无法读取候选人详情");
+    } finally {
+      setCandidateDetailLoading(false);
+    }
+  }, []);
+
+  const processResume = useCallback(async () => {
+    const candidateId = candidateDetail?.candidate.id;
+    if (!candidateId || !resumeFile) {
+      setResumeNotice("请选择 PDF 简历");
+      return;
+    }
+    setResumeBusy(true);
+    setResumeNotice(null);
+    try {
+      const result = await uploadResume(candidateId, resumeFile, selectedJobId ?? undefined);
+      setCandidateDetail(await fetchCandidateDetail(candidateId));
+      setResumeFile(null);
+      setResumeNotice(
+        `解析完成：识别 ${result.profile.skills.length} 项技能${
+          result.score ? `，岗位匹配 ${Number(result.score.total_score).toFixed(0)} 分` : ""
+        }。`
+      );
+      await loadDashboard();
+    } catch (err) {
+      setResumeNotice(err instanceof Error ? err.message : "简历处理失败");
+    } finally {
+      setResumeBusy(false);
+    }
+  }, [candidateDetail?.candidate.id, loadDashboard, resumeFile, selectedJobId]);
 
   const runAutomationAction = useCallback(
     async (action: "start" | "stop" | "scan", candidateName?: string) => {
@@ -416,8 +501,22 @@ export function App() {
                 </div>
                 <Users size={20} />
               </div>
-              <CandidateTable candidates={visibleCandidates} />
+              <CandidateTable candidates={visibleCandidates} onSelect={(candidate) => void selectCandidate(candidate)} />
             </article>
+            {candidateDetailLoading && <div className="loading-line">正在读取候选人详情...</div>}
+            {candidateDetail && (
+              <CandidateDetailPanel
+                detail={candidateDetail}
+                jobs={visibleJobs}
+                selectedJobId={selectedJobId}
+                resumeFile={resumeFile}
+                resumeBusy={resumeBusy}
+                notice={resumeNotice}
+                onFileChange={setResumeFile}
+                onJobChange={setSelectedJobId}
+                onProcess={() => void processResume()}
+              />
+            )}
           </section>
         )}
 
@@ -662,6 +761,158 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function CandidateDetailPanel({
+  detail,
+  jobs,
+  selectedJobId,
+  resumeFile,
+  resumeBusy,
+  notice,
+  onFileChange,
+  onJobChange,
+  onProcess
+}: {
+  detail: CandidateDetail;
+  jobs: Job[];
+  selectedJobId: number | null;
+  resumeFile: File | null;
+  resumeBusy: boolean;
+  notice: string | null;
+  onFileChange: (file: File | null) => void;
+  onJobChange: (jobId: number | null) => void;
+  onProcess: () => void;
+}) {
+  const { candidate, profile, resumes, scores } = detail;
+  const latestScore = scores[0];
+  const projects = profile?.profile_json.projects ?? [];
+
+  return (
+    <article className="candidate-detail">
+      <div className="candidate-detail-header">
+        <div>
+          <h2>{candidate.name ?? "未命名候选人"}</h2>
+          <p>{candidate.profile_summary ?? "上传简历后生成候选人画像和岗位评分。"}</p>
+        </div>
+        {latestScore && (
+          <div className="score-total">
+            <strong>{Number(latestScore.total_score).toFixed(0)}</strong>
+            <span>岗位匹配分</span>
+          </div>
+        )}
+      </div>
+
+      <div className="resume-upload">
+        <label className="file-control">
+          <FileUp size={17} />
+          <span>{resumeFile?.name ?? "选择 PDF 简历"}</span>
+          <input
+            accept="application/pdf,.pdf"
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+            type="file"
+          />
+        </label>
+        <select
+          aria-label="评分岗位"
+          onChange={(event) => onJobChange(event.target.value ? Number(event.target.value) : null)}
+          value={selectedJobId ?? ""}
+        >
+          <option value="">仅解析，不评分</option>
+          {jobs.map((job) => (
+            <option key={job.id} value={job.id}>{job.title}</option>
+          ))}
+        </select>
+        <button
+          className="primary-button"
+          disabled={!resumeFile || resumeBusy}
+          onClick={onProcess}
+          type="button"
+        >
+          <FileText size={16} />
+          <span>{resumeBusy ? "处理中" : "解析并评分"}</span>
+        </button>
+      </div>
+      {notice && <div className="automation-notice">{notice}</div>}
+
+      <div className="profile-summary-grid">
+        <div><span>学历</span><strong>{candidate.education_level ?? "未识别"}</strong></div>
+        <div><span>学校</span><strong>{candidate.school ?? "未识别"}</strong></div>
+        <div><span>专业</span><strong>{candidate.major ?? "未识别"}</strong></div>
+        <div><span>候选类型</span><strong>{candidate.candidate_type ?? "未识别"}</strong></div>
+        <div><span>毕业年份</span><strong>{candidate.graduation_year ?? "未识别"}</strong></div>
+        <div>
+          <span>简历状态</span>
+          <strong>{resumes[0] ? (resumes[0].parse_status === "ok" ? "解析完成" : "待复核") : "未上传"}</strong>
+        </div>
+      </div>
+
+      <div className="candidate-detail-grid">
+        <section>
+          <h3>技能</h3>
+          <div className="tag-list">
+            {profile?.skills.length
+              ? profile.skills.map((skill) => <span key={skill}>{skill}</span>)
+              : <em>暂无技能数据</em>}
+          </div>
+        </section>
+        <section>
+          <h3>亮点与风险</h3>
+          <ul className="profile-points">
+            {profile?.highlights.map((item) => <li className="positive" key={item}>{item}</li>)}
+            {profile?.risks.map((item) => <li className="risk" key={item}>{item}</li>)}
+            {!profile && <li>上传简历后生成。</li>}
+          </ul>
+        </section>
+        <section className="full">
+          <h3>项目经历</h3>
+          <div className="project-list">
+            {projects.length
+              ? projects.map((project, index) => <p key={`${project}-${index}`}>{project}</p>)
+              : <p>暂无项目经历数据。</p>}
+          </div>
+        </section>
+        {latestScore && (
+          <section className="full">
+            <h3>评分说明</h3>
+            <div className="dimension-grid">
+              {scoreDimensionOrder
+                .filter((key) => latestScore.dimensions[key])
+                .map((key) => {
+                  const dimension = latestScore.dimensions[key];
+                  return (
+                    <div key={key}>
+                      <span>{scoreDimensionLabel(key)}</span>
+                      <strong>{dimension.score ?? 0} / {dimension.max ?? 0}</strong>
+                    </div>
+                  );
+                })}
+            </div>
+            <p className="score-rationale">{latestScore.rationale}</p>
+          </section>
+        )}
+      </div>
+    </article>
+  );
+}
+
+const scoreDimensionOrder = [
+  "skills",
+  "education",
+  "projects_experience",
+  "completeness",
+  "basic_fit"
+];
+
+function scoreDimensionLabel(key: string): string {
+  const labels: Record<string, string> = {
+    skills: "技能匹配",
+    education: "学历要求",
+    projects_experience: "项目与经验",
+    completeness: "信息完整度",
+    basic_fit: "基础匹配"
+  };
+  return labels[key] ?? key;
 }
 
 function ActionQueuePanel({ full = false }: { full?: boolean }) {

@@ -20,6 +20,7 @@ export type Candidate = {
   major?: string | null;
   graduation_year?: number | null;
   candidate_type?: string | null;
+  profile_summary?: string | null;
   status: string;
   raw_card?: Record<string, unknown>;
 };
@@ -99,4 +100,64 @@ export type AuditLog = {
   screenshot_path?: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type CandidateProfile = {
+  id: number;
+  candidate_id: number;
+  skills: string[];
+  highlights: string[];
+  risks: string[];
+  profile_json: {
+    projects?: string[];
+    work_experience?: number;
+    parser?: string;
+    [key: string]: unknown;
+  };
+  created_at: string;
+  updated_at: string;
+};
+
+export type Resume = {
+  id: number;
+  candidate_id: number;
+  original_filename?: string | null;
+  file_path?: string | null;
+  parse_status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CandidateScore = {
+  id: number;
+  candidate_id: number;
+  job_id: number;
+  total_score: string;
+  dimensions: Record<string, {
+    score?: number;
+    max?: number;
+    matched?: string[];
+    reason?: string;
+    [key: string]: unknown;
+  }>;
+  rationale?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CandidateDetail = {
+  candidate: Candidate;
+  profile?: CandidateProfile | null;
+  resumes: Resume[];
+  scores: CandidateScore[];
+};
+
+export type ResumeProcessResult = {
+  resume: Resume;
+  candidate: Candidate;
+  profile: CandidateProfile;
+  score?: CandidateScore | null;
+  parser: string;
+  text_length: number;
+  ocr_used: boolean;
 };
