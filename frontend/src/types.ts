@@ -251,3 +251,37 @@ export type TalentScanInput = {
   limit: number;
   capture_screenshot: boolean;
 };
+
+export type WorkflowStep = {
+  node: string;
+  status: string;
+  at: string;
+  candidate_id?: number | null;
+  job_id?: number | null;
+  action_id?: number | null;
+};
+
+export type WorkflowRun = {
+  id: number;
+  workflow_name: "chat_resume" | "recommend_talent" | "daily_recommendation";
+  status: string;
+  current_node?: string | null;
+  candidate_id?: number | null;
+  candidate_name?: string | null;
+  job_id?: number | null;
+  job_title?: string | null;
+  action_id?: number | null;
+  review_note?: string | null;
+  history: WorkflowStep[];
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkflowStartInput = {
+  workflow_name: WorkflowRun["workflow_name"];
+  candidate_id?: number;
+  job_id?: number;
+  action_id?: number;
+  payload?: Record<string, unknown>;
+};

@@ -13,9 +13,11 @@ from app.db.repositories import audit_logs as audit_repo
 from app.db.repositories import resume_processing as resume_repo
 from app.db.session import get_db
 from app.schemas.resumes import CandidateDetailRead, ResumeProcessResult, ScoreRead
+from app.schemas.workflows import WorkflowStartRequest
 from app.services.profiler import generate_candidate_profile
 from app.services.resume_parser import parse_pdf_text
 from app.services.scorer import score_candidate
+from app.services.workflow_service import start_workflow_safely
 
 router = APIRouter(prefix="/candidates", tags=["resumes"])
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -123,6 +125,20 @@ async def upload_and_process_resume(
                 "text_length": len(parsed.text),
                 "job_id": job_id,
             },
+        )
+        start_workflow_safely(
+            db,
+            WorkflowStartRequest(
+                workflow_name="chat_resume",
+                candidate_id=candidate_id,
+                job_id=job_id,
+                payload={
+                    "resume_id": resume.id,
+                    "parse_status": parsed.status,
+                    "source": "resume_upload",
+                    "idempotency_key": f"resume:{resume.id}",
+                },
+            ),
         )
         return ResumeProcessResult(
             resume=resume,

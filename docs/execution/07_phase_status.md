@@ -306,3 +306,40 @@ python -m alembic -c alembic.ini upgrade head
 
 - Phase 8: LangGraph 工作流和人工审核闭环。
 - 增加 checkpoint、失败恢复、流程运行记录和可视化。
+
+## Phase 8 Status
+
+状态：完成 LangGraph 工作流、PostgreSQL checkpoint 和人工审核闭环。
+
+完成内容：
+
+- 新增沟通页简历处理、推荐牛人触达、每日推荐三个 LangGraph。
+- 每个节点执行后将状态、当前节点和历史轨迹写入 `workflow_runs`。
+- 服务重启后可从数据库中的 `current_node` 恢复。
+- `human_review` 节点暂停，支持批准继续和拒绝结束。
+- 失败任务记录异常并支持从当前节点重试。
+- 简历解析、推荐牛人草稿和每日推荐自动创建对应工作流。
+- 新增“工作流”前端页面，查看运行记录、节点轨迹和审核状态。
+- 审核通过只更新草稿和流程状态，不执行 BOSS 页面发送。
+
+新增 API：
+
+- `GET /api/workflows`
+- `GET /api/workflows/{id}`
+- `POST /api/workflows`
+- `POST /api/workflows/{id}/review`
+- `POST /api/workflows/{id}/retry`
+
+自检结果：
+
+- 三类图均可运行至人工确认节点。
+- 人工批准后继续到完成状态。
+- 人工拒绝后进入拒绝状态。
+- 工作流状态和节点轨迹可从 PostgreSQL 读取。
+- 后端编译和前端生产构建通过。
+- 自动发送保持关闭。
+
+下一阶段：
+
+- Phase 9: 稳定性、审计、安全和本地打包。
+- 补充核心自动化测试、敏感数据脱敏、运行恢复手册和发布检查。

@@ -15,6 +15,7 @@
 - [09_resume_processing.md](09_resume_processing.md): PDF、OCR、画像、LLM 增强和岗位评分。
 - [10_daily_recommendations.md](10_daily_recommendations.md): 每日 Top N、约面草稿和人工审核。
 - [11_talent_outreach.md](11_talent_outreach.md): 推荐牛人读取、筛选、去重、草稿和额度。
+- [12_langgraph_workflows.md](12_langgraph_workflows.md): LangGraph 状态机、checkpoint、人审恢复和运行查看器。
 
 ## 执行原则
 

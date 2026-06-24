@@ -24,7 +24,8 @@ import {
   Square,
   ThumbsDown,
   ThumbsUp,
-  Users
+  Users,
+  Workflow
 } from "lucide-react";
 import {
   decideAction,
@@ -35,11 +36,15 @@ import {
   scanChats,
   scanRecommendedTalents,
   startBrowser,
+  startWorkflow,
   stopBrowser,
+  retryWorkflow,
+  reviewWorkflow,
   uploadResume,
   type DashboardData
 } from "./api";
 import { candidates as fallbackCandidates, runEvents } from "./data";
+import { WorkflowView } from "./WorkflowView";
 import type {
   ActionQueueEntry,
   BrowserStatus,
@@ -62,6 +67,7 @@ type ViewId =
   | "recommendations"
   | "actions"
   | "automation"
+  | "workflows"
   | "audit"
   | "settings";
 
@@ -73,6 +79,7 @@ const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard 
   { id: "recommendations", label: "每日推荐", icon: Award },
   { id: "actions", label: "待确认", icon: ListChecks },
   { id: "automation", label: "沟通采集", icon: Bot },
+  { id: "workflows", label: "工作流", icon: Workflow },
   { id: "audit", label: "审计日志", icon: ClipboardList }
 ];
 
@@ -84,6 +91,7 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   recommendations: { title: "每日推荐", description: "按岗位查看高匹配候选人和约面建议。" },
   actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
   automation: { title: "沟通采集", description: "连接 BOSS 沟通页并执行只读信息采集。" },
+  workflows: { title: "工作流", description: "跟踪 LangGraph 节点、人工确认和失败恢复。" },
   audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
   settings: { title: "系统设置", description: "查看本地服务、数据存储和自动化安全策略。" }
 };
@@ -287,6 +295,8 @@ export function App() {
   const [talentBusy, setTalentBusy] = useState(false);
   const [talentNotice, setTalentNotice] = useState<string | null>(null);
   const [talentResult, setTalentResult] = useState<TalentScanResult | null>(null);
+  const [workflowBusy, setWorkflowBusy] = useState<string | null>(null);
+  const [workflowNotice, setWorkflowNotice] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -429,6 +439,57 @@ export function App() {
     talentKeywords,
     talentSalary
   ]);
+
+  const launchWorkflow = useCallback(async (input: Parameters<typeof startWorkflow>[0]) => {
+    setWorkflowBusy("start");
+    setWorkflowNotice(null);
+    try {
+      const run = await startWorkflow(input);
+      await loadDashboard();
+      setWorkflowNotice(
+        `工作流 #${run.id} 已运行到${run.status === "waiting_review" ? "人工确认节点" : "结束状态"}。`
+      );
+    } catch (err) {
+      setWorkflowNotice(err instanceof Error ? err.message : "工作流启动失败");
+    } finally {
+      setWorkflowBusy(null);
+    }
+  }, [loadDashboard]);
+
+  const decideWorkflow = useCallback(async (
+    runId: number,
+    decision: "approved" | "rejected"
+  ) => {
+    setWorkflowBusy(`review:${runId}`);
+    setWorkflowNotice(null);
+    try {
+      const run = await reviewWorkflow(runId, decision);
+      await loadDashboard();
+      setWorkflowNotice(
+        decision === "approved"
+          ? `工作流 #${run.id} 已批准并继续，未执行平台发送。`
+          : `工作流 #${run.id} 已拒绝并结束。`
+      );
+    } catch (err) {
+      setWorkflowNotice(err instanceof Error ? err.message : "工作流审核失败");
+    } finally {
+      setWorkflowBusy(null);
+    }
+  }, [loadDashboard]);
+
+  const rerunWorkflow = useCallback(async (runId: number) => {
+    setWorkflowBusy(`retry:${runId}`);
+    setWorkflowNotice(null);
+    try {
+      await retryWorkflow(runId);
+      await loadDashboard();
+      setWorkflowNotice(`工作流 #${runId} 已从失败节点恢复。`);
+    } catch (err) {
+      setWorkflowNotice(err instanceof Error ? err.message : "工作流重试失败");
+    } finally {
+      setWorkflowBusy(null);
+    }
+  }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
     async (action: "start" | "stop" | "scan", candidateName?: string) => {
@@ -840,6 +901,20 @@ export function App() {
               </article>
             )}
           </section>
+        )}
+
+        {activeView === "workflows" && (
+          <WorkflowView
+            busy={workflowBusy}
+            candidates={visibleCandidates}
+            jobs={visibleJobs}
+            notice={workflowNotice}
+            runs={data?.workflows.items ?? []}
+            onRefresh={() => void loadDashboard()}
+            onRetry={(runId) => void rerunWorkflow(runId)}
+            onReview={(runId, decision) => void decideWorkflow(runId, decision)}
+            onStart={(input) => void launchWorkflow(input)}
+          />
         )}
 
         {activeView === "audit" && (

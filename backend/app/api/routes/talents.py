@@ -8,8 +8,10 @@ from app.db.repositories import audit_logs as audit_repo
 from app.db.repositories import talents as talent_repo
 from app.db.session import get_db
 from app.schemas.talents import GreetingQuotaRead, TalentFilter, TalentScanResult
+from app.schemas.workflows import WorkflowStartRequest
 from app.services.quota import greeting_quota_status
 from app.services.talent_service import filter_talent_cards, greeting_message
+from app.services.workflow_service import start_workflow_safely
 
 router = APIRouter(tags=["talents"])
 
@@ -55,6 +57,7 @@ async def scan_recommended_talents(
     available = quota.available_count
     duplicate_count = 0
     drafted_count = 0
+    drafted_actions = []
 
     for card, matched_keywords in matched_cards:
         candidate, _ = talent_repo.upsert_talent_candidate(db, card)
@@ -68,16 +71,32 @@ async def scan_recommended_talents(
             continue
         if drafted_count >= available:
             continue
-        talent_repo.create_greeting_draft(
+        action = talent_repo.create_greeting_draft(
             db,
             candidate=candidate,
             job=job,
             draft_message=greeting_message(card, job),
             matched_keywords=matched_keywords,
         )
+        drafted_actions.append(action)
         drafted_count += 1
 
     db.commit()
+    for action in drafted_actions:
+        start_workflow_safely(
+            db,
+            WorkflowStartRequest(
+                workflow_name="recommend_talent",
+                candidate_id=action.candidate_id,
+                job_id=action.job_id,
+                action_id=action.id,
+                payload={
+                    "source": "boss_recommend",
+                    "auto_send": False,
+                    "idempotency_key": f"greeting-action:{action.id}",
+                },
+            ),
+        )
     audit_repo.create_audit_log(
         db,
         action_type="talent_scan",

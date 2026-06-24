@@ -16,10 +16,12 @@ from app.schemas.recommendations import (
     RecommendationItemRead,
     RecommendationRunRead,
 )
+from app.schemas.workflows import WorkflowStartRequest
 from app.services.recommendation_service import (
     generate_daily_recommendations,
     read_daily_recommendations,
 )
+from app.services.workflow_service import start_workflow_safely
 
 router = APIRouter(tags=["recommendations"])
 
@@ -72,6 +74,34 @@ def generate_recommendations(
             "drafts_created": result.drafts_created,
         },
     )
+    workflow_job_ids = sorted({item.job_id for item in result.items})
+    for workflow_job_id in workflow_job_ids:
+        first_action_id = next(
+            (
+                item.action_id
+                for item in result.items
+                if item.job_id == workflow_job_id and item.action_id is not None
+            ),
+            None,
+        )
+        start_workflow_safely(
+            db,
+            WorkflowStartRequest(
+                workflow_name="daily_recommendation",
+                job_id=workflow_job_id,
+                action_id=first_action_id,
+                payload={
+                    "recommendation_date": result.recommendation_date.isoformat(),
+                    "recommendation_count": sum(
+                        item.job_id == workflow_job_id for item in result.items
+                    ),
+                    "source": "daily_recommendation",
+                    "idempotency_key": (
+                        f"daily:{workflow_job_id}:{result.recommendation_date.isoformat()}"
+                    ),
+                },
+            ),
+        )
     return result
 
 

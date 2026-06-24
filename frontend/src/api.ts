@@ -12,7 +12,9 @@ import type {
   RecommendationRun,
   ResumeProcessResult,
   TalentScanInput,
-  TalentScanResult
+  TalentScanResult,
+  WorkflowRun,
+  WorkflowStartInput
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
@@ -39,6 +41,7 @@ export type DashboardData = {
   recommendations: Recommendation[];
   actions: PageResponse<ActionQueueEntry>;
   greetingQuota: GreetingQuota;
+  workflows: PageResponse<WorkflowRun>;
 };
 
 export async function fetchDashboardData(): Promise<DashboardData> {
@@ -50,7 +53,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     auditLogs,
     recommendations,
     actions,
-    greetingQuota
+    greetingQuota,
+    workflows
   ] = await Promise.all([
     request<{ status: string }>("/health/database"),
     request<PageResponse<Job>>("/jobs?limit=20"),
@@ -59,7 +63,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     request<PageResponse<AuditLog>>("/audit-logs?limit=30"),
     request<Recommendation[]>("/recommendations/today"),
     request<PageResponse<ActionQueueEntry>>("/actions?limit=50"),
-    request<GreetingQuota>("/quota/greetings")
+    request<GreetingQuota>("/quota/greetings"),
+    request<PageResponse<WorkflowRun>>("/workflows?limit=50")
   ]);
 
   return {
@@ -70,7 +75,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     auditLogs,
     recommendations,
     actions,
-    greetingQuota
+    greetingQuota,
+    workflows
   };
 }
 
@@ -144,4 +150,26 @@ export function scanRecommendedTalents(input: TalentScanInput): Promise<TalentSc
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export function startWorkflow(input: WorkflowStartInput): Promise<WorkflowRun> {
+  return request<WorkflowRun>("/workflows", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function reviewWorkflow(
+  runId: number,
+  decision: "approved" | "rejected",
+  note?: string
+): Promise<WorkflowRun> {
+  return request<WorkflowRun>(`/workflows/${runId}/review`, {
+    method: "POST",
+    body: JSON.stringify({ decision, note: note ?? null })
+  });
+}
+
+export function retryWorkflow(runId: number): Promise<WorkflowRun> {
+  return request<WorkflowRun>(`/workflows/${runId}/retry`, { method: "POST" });
 }
