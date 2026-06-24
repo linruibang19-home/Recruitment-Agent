@@ -14,6 +14,7 @@
 - [08_database_setup.md](08_database_setup.md): PostgreSQL 初始化、迁移和连接检查。
 - [09_resume_processing.md](09_resume_processing.md): PDF、OCR、画像、LLM 增强和岗位评分。
 - [10_daily_recommendations.md](10_daily_recommendations.md): 每日 Top N、约面草稿和人工审核。
+- [11_talent_outreach.md](11_talent_outreach.md): 推荐牛人读取、筛选、去重、草稿和额度。
 
 ## 执行原则
 

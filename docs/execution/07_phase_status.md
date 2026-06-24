@@ -267,3 +267,42 @@ python -m alembic -c alembic.ini upgrade head
 
 - Phase 7: 推荐牛人筛选、卡片读取、打招呼草稿和每日额度。
 - 自动发送继续保持关闭，触达动作进入待确认队列。
+
+## Phase 7 Status
+
+状态：完成推荐牛人只读采集、筛选、去重、草稿和额度。
+
+完成内容：
+
+- Playwright 打开并读取 BOSS 推荐牛人页面。
+- 新增推荐卡片提取器。
+- 支持城市、学历、经验、求职意向、薪资和岗位关键词本地筛选。
+- 使用 BOSS UID 或卡片指纹去重。
+- 匹配候选人写入候选人库，来源标记为 `boss_recommend`。
+- 生成索要 PDF 简历草稿，动作类型为 `request_resume_greeting`。
+- 草稿全部进入待确认队列，`auto_send=false`。
+- 新增每日 50 条额度，待确认和已通过草稿会预留额度。
+- 自动发送和平台页面写操作保持关闭。
+- 新增前端“推荐牛人”筛选与结果页面。
+
+新增 API：
+
+- `GET /api/quota/greetings`
+- `POST /api/automation/recommend/scan`
+
+自检结果：
+
+- `python -m compileall -q backend`: 通过。
+- `npm run build`: 通过。
+- 推荐卡片静态 DOM 提取：通过。
+- 城市、学历、经验和关键词筛选：通过。
+- 每日上限设为 2 时最多生成 2 条草稿：通过。
+- 重复扫描不重复创建草稿：通过。
+- 草稿全部标记 `auto_send=false`：通过。
+- 额度待确认、已通过和可用数量计算：通过。
+- 真实 Chrome 访问时检测到 BOSS 用户验证页面并安全停机：通过。
+
+下一阶段：
+
+- Phase 8: LangGraph 工作流和人工审核闭环。
+- 增加 checkpoint、失败恢复、流程运行记录和可视化。

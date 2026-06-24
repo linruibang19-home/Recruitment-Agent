@@ -17,6 +17,7 @@ import {
   Paperclip,
   Play,
   RefreshCw,
+  Search,
   ScanLine,
   Settings,
   ShieldCheck,
@@ -32,6 +33,7 @@ import {
   generateRecommendations,
   openChat,
   scanChats,
+  scanRecommendedTalents,
   startBrowser,
   stopBrowser,
   uploadResume,
@@ -44,16 +46,19 @@ import type {
   Candidate,
   CandidateDetail,
   ChatScanResult,
+  GreetingQuota,
   Job,
   Metric,
   PipelineStage,
-  Recommendation
+  Recommendation,
+  TalentScanResult
 } from "./types";
 
 type ViewId =
   | "dashboard"
   | "jobs"
   | "candidates"
+  | "talents"
   | "recommendations"
   | "actions"
   | "automation"
@@ -64,6 +69,7 @@ const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard 
   { id: "dashboard", label: "工作台", icon: LayoutDashboard },
   { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
   { id: "candidates", label: "候选人库", icon: Users },
+  { id: "talents", label: "推荐牛人", icon: Search },
   { id: "recommendations", label: "每日推荐", icon: Award },
   { id: "actions", label: "待确认", icon: ListChecks },
   { id: "automation", label: "沟通采集", icon: Bot },
@@ -74,6 +80,7 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   dashboard: { title: "招聘工作台", description: "查看岗位、候选人和自动化服务的当前状态。" },
   jobs: { title: "岗位管理", description: "维护招聘岗位及候选人匹配条件。" },
   candidates: { title: "候选人库", description: "查看已采集候选人的基础资料和处理进度。" },
+  talents: { title: "推荐牛人", description: "读取推荐卡片并生成索要简历草稿。" },
   recommendations: { title: "每日推荐", description: "按岗位查看高匹配候选人和约面建议。" },
   actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
   automation: { title: "沟通采集", description: "连接 BOSS 沟通页并执行只读信息采集。" },
@@ -115,6 +122,13 @@ function sourceLabel(source?: string | null): string {
   return source ? labels[source] ?? source : "手动录入";
 }
 
+function splitInput(value: string): string[] {
+  return value
+    .split(/[,，、]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function buildPipeline(candidates: Candidate[]): PipelineStage[] {
   const count = (status: string) => candidates.filter((candidate) => candidate.status === status).length;
   return [
@@ -130,7 +144,14 @@ function buildMetrics(data: DashboardData | null, candidates: Candidate[]): Metr
   return [
     { label: "候选人", value: String(data?.candidates.total ?? candidates.length), detail: "PostgreSQL 实时数据" },
     { label: "岗位", value: String(data?.jobs.total ?? 0), detail: "已配置岗位" },
-    { label: "主动触达额度", value: "0 / 50", detail: "今日已使用" },
+    {
+      label: "主动触达额度",
+      value: `${data?.greetingQuota.used_count ?? 0} / ${data?.greetingQuota.max_count ?? 50}`,
+      detail: `草稿占用 ${(
+        (data?.greetingQuota.pending_count ?? 0) +
+        (data?.greetingQuota.approved_count ?? 0)
+      )}`
+    },
     {
       label: "数据库",
       value: data?.databaseStatus === "ok" ? "正常" : "离线",
@@ -162,7 +183,8 @@ function auditActionLabel(actionType: string): string {
     daily_recommendation: "生成每日推荐",
     daily_recommendation_schedule: "定时每日推荐",
     action_approved: "通过待确认动作",
-    action_rejected: "拒绝待确认动作"
+    action_rejected: "拒绝待确认动作",
+    talent_scan: "扫描推荐牛人"
   };
   return labels[actionType] ?? actionType;
 }
@@ -255,6 +277,16 @@ export function App() {
   const [recommendationNotice, setRecommendationNotice] = useState<string | null>(null);
   const [actionBusyId, setActionBusyId] = useState<number | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [talentJobId, setTalentJobId] = useState<number | null>(null);
+  const [talentCity, setTalentCity] = useState("广州");
+  const [talentEducation, setTalentEducation] = useState("本科");
+  const [talentExperience, setTalentExperience] = useState("在校/应届");
+  const [talentIntention, setTalentIntention] = useState("");
+  const [talentSalary, setTalentSalary] = useState("");
+  const [talentKeywords, setTalentKeywords] = useState("");
+  const [talentBusy, setTalentBusy] = useState(false);
+  const [talentNotice, setTalentNotice] = useState<string | null>(null);
+  const [talentResult, setTalentResult] = useState<TalentScanResult | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -279,7 +311,11 @@ export function App() {
     if (!recommendationJobId && data?.jobs.items[0]) {
       setRecommendationJobId(data.jobs.items[0].id);
     }
-  }, [data?.jobs.items, recommendationJobId, selectedJobId]);
+    if (!talentJobId && data?.jobs.items[0]) {
+      setTalentJobId(data.jobs.items[0].id);
+      setTalentKeywords(data.jobs.items[0].keywords.join(", "));
+    }
+  }, [data?.jobs.items, recommendationJobId, selectedJobId, talentJobId]);
 
   const selectCandidate = useCallback(async (candidate: Candidate) => {
     if (!candidate.id) {
@@ -353,6 +389,46 @@ export function App() {
       setActionBusyId(null);
     }
   }, [loadDashboard]);
+
+  const runTalentScan = useCallback(async () => {
+    if (!talentJobId) {
+      setTalentNotice("请选择岗位");
+      return;
+    }
+    setTalentBusy(true);
+    setTalentNotice(null);
+    try {
+      const result = await scanRecommendedTalents({
+        job_id: talentJobId,
+        city: talentCity.trim() || undefined,
+        experience: splitInput(talentExperience),
+        education: splitInput(talentEducation),
+        intentions: splitInput(talentIntention),
+        salary_keywords: splitInput(talentSalary),
+        required_keywords: splitInput(talentKeywords),
+        limit: 30,
+        capture_screenshot: true
+      });
+      setTalentResult(result);
+      await loadDashboard();
+      setTalentNotice(
+        `读取 ${result.total_read} 张卡片，匹配 ${result.matched_count} 人，生成 ${result.drafted_count} 条草稿。`
+      );
+    } catch (err) {
+      setTalentNotice(err instanceof Error ? err.message : "推荐牛人扫描失败");
+    } finally {
+      setTalentBusy(false);
+    }
+  }, [
+    loadDashboard,
+    talentCity,
+    talentEducation,
+    talentExperience,
+    talentIntention,
+    talentJobId,
+    talentKeywords,
+    talentSalary
+  ]);
 
   const runAutomationAction = useCallback(
     async (action: "start" | "stop" | "scan", candidateName?: string) => {
@@ -456,7 +532,9 @@ export function App() {
             <div className={error ? "status-strip warning" : "status-strip"}>
               <span className="status-dot" />
               <span>{error ? "API 异常" : "API 正常"}</span>
-              <strong>主动触达 0 / 50</strong>
+              <strong>
+                主动触达 {data?.greetingQuota.used_count ?? 0} / {data?.greetingQuota.max_count ?? 50}
+              </strong>
             </div>
             <button className="refresh-button" onClick={loadDashboard} disabled={isLoading} type="button">
               <RefreshCw size={16} />
@@ -609,6 +687,37 @@ export function App() {
             selectedJobId={recommendationJobId}
             onGenerate={() => void runRecommendations()}
             onJobChange={setRecommendationJobId}
+          />
+        )}
+
+        {activeView === "talents" && (
+          <TalentView
+            busy={talentBusy}
+            city={talentCity}
+            education={talentEducation}
+            experience={talentExperience}
+            intention={talentIntention}
+            jobs={visibleJobs}
+            keywords={talentKeywords}
+            notice={talentNotice}
+            quota={data?.greetingQuota}
+            result={talentResult}
+            salary={talentSalary}
+            selectedJobId={talentJobId}
+            onCityChange={setTalentCity}
+            onEducationChange={setTalentEducation}
+            onExperienceChange={setTalentExperience}
+            onIntentionChange={setTalentIntention}
+            onJobChange={(jobId) => {
+              setTalentJobId(jobId);
+              const job = visibleJobs.find((item) => item.id === jobId);
+              if (job) {
+                setTalentKeywords(job.keywords.join(", "));
+              }
+            }}
+            onKeywordsChange={setTalentKeywords}
+            onSalaryChange={setTalentSalary}
+            onScan={() => void runTalentScan()}
           />
         )}
 
@@ -1001,6 +1110,164 @@ function scoreDimensionLabel(key: string): string {
   return labels[key] ?? key;
 }
 
+function TalentView({
+  jobs,
+  selectedJobId,
+  city,
+  education,
+  experience,
+  intention,
+  salary,
+  keywords,
+  quota,
+  result,
+  busy,
+  notice,
+  onJobChange,
+  onCityChange,
+  onEducationChange,
+  onExperienceChange,
+  onIntentionChange,
+  onSalaryChange,
+  onKeywordsChange,
+  onScan
+}: {
+  jobs: Job[];
+  selectedJobId: number | null;
+  city: string;
+  education: string;
+  experience: string;
+  intention: string;
+  salary: string;
+  keywords: string;
+  quota?: GreetingQuota;
+  result: TalentScanResult | null;
+  busy: boolean;
+  notice: string | null;
+  onJobChange: (jobId: number | null) => void;
+  onCityChange: (value: string) => void;
+  onEducationChange: (value: string) => void;
+  onExperienceChange: (value: string) => void;
+  onIntentionChange: (value: string) => void;
+  onSalaryChange: (value: string) => void;
+  onKeywordsChange: (value: string) => void;
+  onScan: () => void;
+}) {
+  return (
+    <section className="single-view">
+      <article className="panel full">
+        <div className="talent-header">
+          <div>
+            <h2>推荐牛人筛选</h2>
+            <p>读取当前推荐页后在本地筛选，不执行打招呼或消息发送。</p>
+          </div>
+          <div className="quota-summary">
+            <strong>{quota?.available_count ?? 50}</strong>
+            <span>今日可用草稿额度</span>
+          </div>
+        </div>
+
+        <div className="talent-filter-grid">
+          <label>
+            <span>岗位</span>
+            <select
+              onChange={(event) => onJobChange(event.target.value ? Number(event.target.value) : null)}
+              value={selectedJobId ?? ""}
+            >
+              <option value="">请选择岗位</option>
+              {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>城市</span>
+            <input onChange={(event) => onCityChange(event.target.value)} value={city} />
+          </label>
+          <label>
+            <span>学历</span>
+            <input onChange={(event) => onEducationChange(event.target.value)} value={education} />
+          </label>
+          <label>
+            <span>经验</span>
+            <input onChange={(event) => onExperienceChange(event.target.value)} value={experience} />
+          </label>
+          <label>
+            <span>求职意向</span>
+            <input
+              onChange={(event) => onIntentionChange(event.target.value)}
+              placeholder="Python开发、后端开发"
+              value={intention}
+            />
+          </label>
+          <label>
+            <span>薪资关键词</span>
+            <input
+              onChange={(event) => onSalaryChange(event.target.value)}
+              placeholder="10-15K、200-250元/天"
+              value={salary}
+            />
+          </label>
+          <label className="wide">
+            <span>岗位关键词</span>
+            <input onChange={(event) => onKeywordsChange(event.target.value)} value={keywords} />
+          </label>
+          <button
+            className="primary-button talent-scan-button"
+            disabled={busy || !selectedJobId}
+            onClick={onScan}
+            type="button"
+          >
+            <ScanLine size={16} />
+            <span>{busy ? "扫描中" : "扫描并生成草稿"}</span>
+          </button>
+        </div>
+        {notice && <div className="automation-notice">{notice}</div>}
+        <div className="safety-strip">
+          <ShieldCheck size={18} />
+          <span>
+            自动发送关闭。待确认和已通过草稿共占用额度，只有未来真实发送成功才计入已使用。
+          </span>
+        </div>
+      </article>
+
+      <article className="panel full">
+        <div className="panel-header">
+          <div>
+            <h2>扫描结果</h2>
+            <p>
+              {result
+                ? `读取 ${result.total_read}，匹配 ${result.matched_count}，去重 ${result.duplicate_count}，草稿 ${result.drafted_count}。`
+                : "启动浏览器并手工登录 BOSS 后读取推荐牛人页面。"}
+            </p>
+          </div>
+          <Users size={20} />
+        </div>
+        {result?.cards.length ? (
+          <div className="talent-card-list">
+            {result.cards.map((card) => (
+              <div className="talent-result-row" key={card.boss_uid}>
+                <div>
+                  <strong>{card.name}</strong>
+                  <span>
+                    {[card.city, card.education_level, card.school, card.experience]
+                      .filter(Boolean)
+                      .join(" / ") || "卡片信息待补充"}
+                  </span>
+                </div>
+                <div className="tag-list">
+                  {card.skills.slice(0, 8).map((skill) => <span key={skill}>{skill}</span>)}
+                </div>
+                <span>{card.intention ?? card.expected_salary ?? "未识别意向"}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">暂无匹配卡片。</div>
+        )}
+      </article>
+    </section>
+  );
+}
+
 function RecommendationView({
   recommendations,
   jobs,
@@ -1136,7 +1403,13 @@ function ActionQueuePanel({
             <div className="action-review-row" key={item.id}>
               <FileText size={18} />
               <div>
-                <strong>{item.action_type === "interview_invite" ? "约面邀请" : item.action_type}</strong>
+                <strong>
+                  {item.action_type === "interview_invite"
+                    ? "约面邀请"
+                    : item.action_type === "request_resume_greeting"
+                      ? "索要简历"
+                      : item.action_type}
+                </strong>
                 <span>{item.candidate_name ?? "未知候选人"} / {item.job_title ?? "未关联岗位"}</span>
                 {item.draft_message && <p>{item.draft_message}</p>}
               </div>

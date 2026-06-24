@@ -6,5 +6,6 @@ def foundation_capabilities() -> list[dict[str, str]]:
         {"name": "Playwright browser worker", "status": "ready"},
         {"name": "Resume parsing and scoring", "status": "ready"},
         {"name": "Daily recommendations", "status": "ready"},
+        {"name": "Talent outreach drafts and quota", "status": "ready"},
         {"name": "LangGraph workflows", "status": "planned"},
     ]

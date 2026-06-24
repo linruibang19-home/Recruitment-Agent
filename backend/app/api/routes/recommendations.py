@@ -118,7 +118,7 @@ def _decide_action(
         "review_note": note,
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
     }
-    if action.candidate:
+    if action.candidate and action.action_type == "interview_invite":
         action.candidate.status = (
             "interview_invite_pending" if decision == "approved" else "scored"
         )

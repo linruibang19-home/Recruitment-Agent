@@ -12,8 +12,10 @@ from uuid import uuid4
 from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
 
 from app.browser.extractor import click_chat_by_name, extract_chat_detail, extract_chat_summaries
+from app.browser.talent_extractor import extract_talent_cards
 from app.core.config import settings
 from app.schemas.automation import BrowserStatus, ChatScanResult
+from app.schemas.talents import TalentCard
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -27,6 +29,7 @@ LOGIN_KEYWORDS = ("登录", "扫码登录", "手机号登录")
 class BrowserSessionConfig:
     base_url: str
     chat_url: str
+    recommend_url: str
     user_data_dir: str
     screenshot_dir: str
     executable_path: str
@@ -38,6 +41,7 @@ def get_browser_session_config() -> BrowserSessionConfig:
     return BrowserSessionConfig(
         base_url=settings.boss_base_url,
         chat_url=f"{settings.boss_base_url.rstrip('/')}/web/chat/index",
+        recommend_url=f"{settings.boss_base_url.rstrip('/')}/web/chat/recommend",
         user_data_dir=settings.chrome_user_data_dir or str(DEFAULT_PROFILE_DIR),
         screenshot_dir=settings.screenshot_dir or str(DEFAULT_SCREENSHOT_DIR),
         executable_path=settings.chrome_executable_path,
@@ -143,6 +147,32 @@ class _BrowserWorker:
                 screenshot_path=screenshot_path,
             )
 
+    async def scan_talents(
+        self,
+        limit: int,
+        capture_screenshot: bool,
+    ) -> tuple[list[TalentCard], str, str | None]:
+        async with self._lock:
+            page = await self._require_ready_page()
+            config = get_browser_session_config()
+            try:
+                if "/web/chat/recommend" not in page.url:
+                    await page.goto(
+                        config.recommend_url,
+                        wait_until="domcontentloaded",
+                        timeout=30_000,
+                    )
+                    await page.wait_for_timeout(1_200)
+                status = await self._inspect_page()
+                if status.state != "ready":
+                    raise BrowserSessionError(status.detail or "推荐牛人页面不可读取")
+                cards = await extract_talent_cards(page, limit)
+            except Exception as exc:
+                screenshot_path = await self._screenshot(page, "talent-scan-failed")
+                raise BrowserOperationError(str(exc), screenshot_path) from exc
+            screenshot_path = await self._screenshot(page, "talent-scan") if capture_screenshot else None
+            return cards, page.url, screenshot_path
+
     async def _require_ready_page(self) -> Page:
         if not self._context or not self._page or self._page.is_closed():
             raise BrowserSessionError("浏览器会话未启动")
@@ -224,6 +254,15 @@ class BrowserSessionManager:
     async def open_chat(self, candidate_name: str, capture_screenshot: bool) -> ChatScanResult:
         return await self._submit(
             lambda: self._get_worker().open_chat(candidate_name, capture_screenshot)
+        )
+
+    async def scan_talents(
+        self,
+        limit: int,
+        capture_screenshot: bool,
+    ) -> tuple[list[TalentCard], str, str | None]:
+        return await self._submit(
+            lambda: self._get_worker().scan_talents(limit, capture_screenshot)
         )
 
     def _get_worker(self) -> _BrowserWorker:

@@ -1206,6 +1206,101 @@ p {
   opacity: 0.5;
 }
 
+.talent-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.talent-header h2 {
+  color: #17252b;
+}
+
+.quota-summary {
+  min-width: 130px;
+  text-align: right;
+}
+
+.quota-summary strong,
+.quota-summary span {
+  display: block;
+}
+
+.quota-summary strong {
+  color: #0f766e;
+  font-size: 28px;
+  line-height: 32px;
+}
+
+.quota-summary span {
+  color: #667985;
+  font-size: 11px;
+}
+
+.talent-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.talent-filter-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.talent-filter-grid label.wide {
+  grid-column: span 2;
+}
+
+.talent-filter-grid label > span {
+  color: #667985;
+  font-size: 11px;
+}
+
+.talent-filter-grid input,
+.talent-filter-grid select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfe0e3;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263b43;
+  font: inherit;
+  font-size: 13px;
+}
+
+.talent-scan-button {
+  align-self: end;
+}
+
+.talent-card-list {
+  display: grid;
+}
+
+.talent-result-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(260px, 1.5fr) minmax(140px, 0.7fr);
+  gap: 18px;
+  align-items: center;
+  padding: 14px 4px;
+  border-bottom: 1px solid #edf1f2;
+}
+
+.talent-result-row strong,
+.talent-result-row span {
+  display: block;
+}
+
+.talent-result-row > div:first-child > span,
+.talent-result-row > span {
+  color: #667985;
+  font-size: 12px;
+  line-height: 19px;
+}
+
 @media (max-width: 1050px) {
   .metric-grid,
   .check-grid {
@@ -1226,6 +1321,10 @@ p {
 
   .dimension-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .talent-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1377,6 +1476,23 @@ p {
 
   .action-review-status > div {
     justify-content: flex-start;
+  }
+
+  .talent-header {
+    display: grid;
+  }
+
+  .quota-summary {
+    text-align: left;
+  }
+
+  .talent-filter-grid,
+  .talent-result-row {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-filter-grid label.wide {
+    grid-column: auto;
   }
 
   .audit-row {

@@ -201,3 +201,53 @@ export type ActionQueueEntry = {
   created_at: string;
   updated_at: string;
 };
+
+export type GreetingQuota = {
+  quota_date: string;
+  used_count: number;
+  max_count: number;
+  pending_count: number;
+  approved_count: number;
+  available_count: number;
+};
+
+export type TalentCard = {
+  boss_uid: string;
+  name: string;
+  age?: number | null;
+  city?: string | null;
+  education_level?: string | null;
+  school?: string | null;
+  major?: string | null;
+  graduation_year?: number | null;
+  candidate_type?: string | null;
+  experience?: string | null;
+  intention?: string | null;
+  expected_salary?: string | null;
+  skills: string[];
+  href?: string | null;
+  raw_text: string;
+};
+
+export type TalentScanResult = {
+  scanned_at: string;
+  page_url: string;
+  total_read: number;
+  matched_count: number;
+  duplicate_count: number;
+  drafted_count: number;
+  cards: TalentCard[];
+  screenshot_path?: string | null;
+};
+
+export type TalentScanInput = {
+  job_id: number;
+  city?: string;
+  experience: string[];
+  education: string[];
+  intentions: string[];
+  salary_keywords: string[];
+  required_keywords: string[];
+  limit: number;
+  capture_screenshot: boolean;
+};

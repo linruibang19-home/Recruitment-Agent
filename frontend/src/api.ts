@@ -5,11 +5,14 @@ import type {
   Candidate,
   CandidateDetail,
   ChatScanResult,
+  GreetingQuota,
   Job,
   PageResponse,
   Recommendation,
   RecommendationRun,
-  ResumeProcessResult
+  ResumeProcessResult,
+  TalentScanInput,
+  TalentScanResult
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api";
@@ -35,17 +38,28 @@ export type DashboardData = {
   auditLogs: PageResponse<AuditLog>;
   recommendations: Recommendation[];
   actions: PageResponse<ActionQueueEntry>;
+  greetingQuota: GreetingQuota;
 };
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const [databaseHealth, jobs, candidates, browser, auditLogs, recommendations, actions] = await Promise.all([
+  const [
+    databaseHealth,
+    jobs,
+    candidates,
+    browser,
+    auditLogs,
+    recommendations,
+    actions,
+    greetingQuota
+  ] = await Promise.all([
     request<{ status: string }>("/health/database"),
     request<PageResponse<Job>>("/jobs?limit=20"),
     request<PageResponse<Candidate>>("/candidates?limit=20"),
     request<BrowserStatus>("/automation/browser/status"),
     request<PageResponse<AuditLog>>("/audit-logs?limit=30"),
     request<Recommendation[]>("/recommendations/today"),
-    request<PageResponse<ActionQueueEntry>>("/actions?limit=50")
+    request<PageResponse<ActionQueueEntry>>("/actions?limit=50"),
+    request<GreetingQuota>("/quota/greetings")
   ]);
 
   return {
@@ -55,7 +69,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     browser,
     auditLogs,
     recommendations,
-    actions
+    actions,
+    greetingQuota
   };
 }
 
@@ -121,5 +136,12 @@ export function decideAction(
   return request<ActionQueueEntry>(`/actions/${actionId}/${decision}`, {
     method: "POST",
     body: JSON.stringify({ note: note ?? null })
+  });
+}
+
+export function scanRecommendedTalents(input: TalentScanInput): Promise<TalentScanResult> {
+  return request<TalentScanResult>("/automation/recommend/scan", {
+    method: "POST",
+    body: JSON.stringify(input)
   });
 }
