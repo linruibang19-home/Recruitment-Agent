@@ -1,9 +1,24 @@
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog
+from app.core.security import redact_data, redact_text
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _safe_screenshot_path(screenshot_path: str | None) -> str | None:
+    if not screenshot_path:
+        return None
+    path = Path(screenshot_path)
+    try:
+        return path.resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+    except ValueError:
+        return "[本地路径]"
 
 
 def create_audit_log(
@@ -18,9 +33,9 @@ def create_audit_log(
     entry = AuditLog(
         action_type=action_type,
         status=status,
-        detail=detail,
-        screenshot_path=screenshot_path,
-        payload=payload or {},
+        detail=redact_text(detail),
+        screenshot_path=_safe_screenshot_path(screenshot_path),
+        payload=redact_data(payload or {}),
     )
     db.add(entry)
     db.commit()

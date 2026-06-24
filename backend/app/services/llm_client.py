@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 from urllib import request
 
 from app.core.config import settings
-
-
-def _redact_personal_data(text: str) -> str:
-    text = re.sub(r"1[3-9]\d{9}", "[手机号]", text)
-    return re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[邮箱]", text)
+from app.core.security import redact_text
 
 
 def enrich_profile_with_llm(text: str, fallback: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -22,7 +17,7 @@ def enrich_profile_with_llm(text: str, fallback: dict[str, Any]) -> tuple[dict[s
         "字段：education_level, school, major, graduation_year, candidate_type, "
         "skills, projects, work_experience, highlights, risks, profile_summary。"
         "缺失值使用 null 或空数组，不推测敏感属性。\n\n"
-        f"{_redact_personal_data(text[:18000])}"
+        f"{redact_text(text[:18000])}"
     )
     payload = json.dumps(
         {

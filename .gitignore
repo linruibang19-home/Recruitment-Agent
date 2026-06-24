@@ -12,6 +12,7 @@ data/uploads/
 data/screenshots/
 data/tmp/
 data/tessdata/
+data/runtime/
 
 # Python
 __pycache__/

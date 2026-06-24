@@ -98,10 +98,9 @@ async def open_chat(payload: ChatOpenRequest, db: Session = Depends(get_db)) -> 
             db,
             action_type="chat_open",
             status="ok",
-            detail=f"读取候选人聊天：{payload.candidate_name}",
+            detail="读取候选人聊天详情",
             screenshot_path=result.screenshot_path,
             payload={
-                "candidate_name": payload.candidate_name,
                 "message_count": len(detail.messages),
                 "attachment_count": len(detail.attachments),
                 "url": result.page_url,

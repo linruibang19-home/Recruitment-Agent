@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  Trash2,
   Eye,
   FileText,
   FileUp,
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import {
   decideAction,
+  deleteCandidate,
   fetchCandidateDetail,
   fetchDashboardData,
   generateRecommendations,
@@ -192,7 +194,8 @@ function auditActionLabel(actionType: string): string {
     daily_recommendation_schedule: "定时每日推荐",
     action_approved: "通过待确认动作",
     action_rejected: "拒绝待确认动作",
-    talent_scan: "扫描推荐牛人"
+    talent_scan: "扫描推荐牛人",
+    candidate_deleted: "删除候选人数据"
   };
   return labels[actionType] ?? actionType;
 }
@@ -279,6 +282,7 @@ export function App() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [resumeBusy, setResumeBusy] = useState(false);
+  const [candidateDeleteBusy, setCandidateDeleteBusy] = useState(false);
   const [resumeNotice, setResumeNotice] = useState<string | null>(null);
   const [recommendationJobId, setRecommendationJobId] = useState<number | null>(null);
   const [recommendationBusy, setRecommendationBusy] = useState(false);
@@ -366,6 +370,30 @@ export function App() {
       setResumeBusy(false);
     }
   }, [candidateDetail?.candidate.id, loadDashboard, resumeFile, selectedJobId]);
+
+  const removeCandidate = useCallback(async () => {
+    const candidateId = candidateDetail?.candidate.id;
+    if (!candidateId) {
+      return;
+    }
+    const candidateName = candidateDetail.candidate.name ?? `候选人 #${candidateId}`;
+    if (!window.confirm(`确认永久删除“${candidateName}”及其简历、画像、评分和沟通记录吗？`)) {
+      return;
+    }
+    setCandidateDeleteBusy(true);
+    setResumeNotice(null);
+    try {
+      const result = await deleteCandidate(candidateId);
+      setCandidateDetail(null);
+      setResumeFile(null);
+      await loadDashboard();
+      setResumeNotice(`候选人数据已删除，同时清理 ${result.deleted_resume_files} 个本地简历文件。`);
+    } catch (err) {
+      setResumeNotice(err instanceof Error ? err.message : "候选人删除失败");
+    } finally {
+      setCandidateDeleteBusy(false);
+    }
+  }, [candidateDetail, loadDashboard]);
 
   const runRecommendations = useCallback(async () => {
     setRecommendationBusy(true);
@@ -700,6 +728,9 @@ export function App() {
 
         {activeView === "candidates" && (
           <section className="single-view">
+            {resumeNotice && !candidateDetail && (
+              <div className="automation-notice">{resumeNotice}</div>
+            )}
             <article className="panel full">
               <div className="panel-header">
                 <div>
@@ -718,10 +749,12 @@ export function App() {
                 selectedJobId={selectedJobId}
                 resumeFile={resumeFile}
                 resumeBusy={resumeBusy}
+                deleteBusy={candidateDeleteBusy}
                 notice={resumeNotice}
                 onFileChange={setResumeFile}
                 onJobChange={setSelectedJobId}
                 onProcess={() => void processResume()}
+                onDelete={() => void removeCandidate()}
               />
             )}
           </section>
@@ -972,6 +1005,12 @@ export function App() {
                   <dt>浏览器会话</dt>
                   <dd>{browserStateLabel(data?.browser)}</dd>
                 </div>
+                <div>
+                  <dt>连续自动化失败</dt>
+                  <dd className={(data?.browser.consecutive_failures ?? 0) > 0 ? "value-error" : "value-ok"}>
+                    {data?.browser.consecutive_failures ?? 0} / 3
+                  </dd>
+                </div>
               </dl>
             </article>
 
@@ -999,6 +1038,10 @@ export function App() {
                 <div>
                   <dt>约面及发送动作</dt>
                   <dd>人工确认</dd>
+                </div>
+                <div>
+                  <dt>审计日志敏感信息</dt>
+                  <dd>自动脱敏</dd>
                 </div>
               </dl>
             </article>
@@ -1039,20 +1082,24 @@ function CandidateDetailPanel({
   selectedJobId,
   resumeFile,
   resumeBusy,
+  deleteBusy,
   notice,
   onFileChange,
   onJobChange,
-  onProcess
+  onProcess,
+  onDelete
 }: {
   detail: CandidateDetail;
   jobs: Job[];
   selectedJobId: number | null;
   resumeFile: File | null;
   resumeBusy: boolean;
+  deleteBusy: boolean;
   notice: string | null;
   onFileChange: (file: File | null) => void;
   onJobChange: (jobId: number | null) => void;
   onProcess: () => void;
+  onDelete: () => void;
 }) {
   const { candidate, profile, resumes, scores } = detail;
   const latestScore = scores[0];
@@ -1065,12 +1112,23 @@ function CandidateDetailPanel({
           <h2>{candidate.name ?? "未命名候选人"}</h2>
           <p>{candidate.profile_summary ?? "上传简历后生成候选人画像和岗位评分。"}</p>
         </div>
-        {latestScore && (
-          <div className="score-total">
-            <strong>{Number(latestScore.total_score).toFixed(0)}</strong>
-            <span>岗位匹配分</span>
-          </div>
-        )}
+        <div className="candidate-detail-actions">
+          {latestScore && (
+            <div className="score-total">
+              <strong>{Number(latestScore.total_score).toFixed(0)}</strong>
+              <span>岗位匹配分</span>
+            </div>
+          )}
+          <button
+            className="danger-button"
+            disabled={deleteBusy}
+            onClick={onDelete}
+            type="button"
+          >
+            <Trash2 size={16} />
+            <span>{deleteBusy ? "删除中" : "删除候选人"}</span>
+          </button>
+        </div>
       </div>
 
       <div className="resume-upload">

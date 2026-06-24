@@ -105,25 +105,31 @@ python -m alembic -c alembic.ini upgrade head
 - Phase 6: 每日推荐和约面草稿
 - Phase 7: 推荐牛人筛选和触达草稿
 - Phase 8: LangGraph 工作流和人审闭环
+- Phase 9: 稳定性、审计、安全和本地运行
 
-Phase 8 已交付：
+Phase 9 已交付：
 
-- 沟通页简历、推荐牛人、每日推荐三个 LangGraph
-- 每个节点完成后写入 PostgreSQL checkpoint
-- 人工审核暂停、批准继续和拒绝结束
-- 失败节点重试与错误记录
-- 工作流运行记录和节点轨迹页面
-- 简历解析、触达草稿和每日推荐自动建立工作流
+- 审计日志手机号、邮箱、身份证号、微信号和路径脱敏
+- 候选人及其简历、画像、评分和沟通记录删除
+- 浏览器连续失败 3 次安全停机
+- 自动化健康检查
+- 后端核心测试套件
+- Windows 一键启动、停止和状态脚本
 
 使用步骤：
 
-1. 正常执行简历解析、推荐牛人扫描或每日推荐。
-2. 进入“工作流”查看节点轨迹。
-3. 对等待人工确认的工作流执行批准或拒绝。
-4. 失败任务可从当前节点重试。
+```powershell
+.\scripts\start.ps1
+.\scripts\status.ps1
+.\scripts\stop.ps1
+```
 
-批准仅推进工作流并更新草稿状态，不会向 BOSS 自动发送消息。
+开发测试：
 
-后续阶段：
+```powershell
+cd backend
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
 
-- Phase 9: 稳定性、审计、安全和本地打包
+自动发送仍然关闭，批准仅推进工作流并更新草稿状态。

@@ -94,7 +94,8 @@ class Candidate(Base, TimestampMixin):
     )
     scores: Mapped[list[Score]] = relationship(back_populates="candidate", cascade="all, delete-orphan")
     actions: Mapped[list[ActionQueueItem]] = relationship(
-        back_populates="candidate", cascade="all, delete-orphan"
+        back_populates="candidate",
+        passive_deletes=True,
     )
 
     __table_args__ = (

@@ -115,7 +115,7 @@ async def upload_and_process_resume(
             db,
             action_type="resume_process",
             status="ok",
-            detail=f"简历解析完成：{file.filename}",
+            detail="候选人简历解析完成",
             payload={
                 "candidate_id": candidate_id,
                 "resume_id": resume.id,
@@ -160,7 +160,7 @@ async def upload_and_process_resume(
             action_type="resume_process",
             status="failed",
             detail=f"{type(exc).__name__}: {exc}",
-            payload={"candidate_id": candidate_id, "filename": file.filename},
+            payload={"candidate_id": candidate_id},
         )
         raise HTTPException(status_code=422, detail=f"简历处理失败：{exc}") from exc
 

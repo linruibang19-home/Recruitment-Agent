@@ -224,6 +224,7 @@ p {
 
 .primary-button,
 .secondary-button,
+.danger-button,
 .text-button,
 .icon-button {
   display: inline-flex;
@@ -249,6 +250,33 @@ p {
   border: 1px solid #cfe0e3;
   background: #ffffff;
   color: #15575a;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #b42318;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.candidate-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .text-button {
@@ -1580,6 +1608,11 @@ p {
 
   .candidate-detail-header {
     display: grid;
+  }
+
+  .candidate-detail-actions {
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .score-total {

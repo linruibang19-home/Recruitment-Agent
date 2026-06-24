@@ -68,6 +68,8 @@ class _BrowserWorker:
         self._page: Page | None = None
         self._state = "stopped"
         self._detail: str | None = None
+        self._consecutive_failures = 0
+        self._last_error: str | None = None
 
     async def start(self) -> BrowserStatus:
         async with self._lock:
@@ -99,6 +101,7 @@ class _BrowserWorker:
                 await self._page.goto(config.chat_url, wait_until="domcontentloaded", timeout=30_000)
                 await self._page.wait_for_timeout(1_000)
                 await self._page.bring_to_front()
+                self._reset_operation_failures()
                 return await self._inspect_page()
             except Exception as exc:
                 self._state = "error"
@@ -109,7 +112,13 @@ class _BrowserWorker:
     async def status(self) -> BrowserStatus:
         async with self._lock:
             if not self._context or not self._page or self._page.is_closed():
-                return BrowserStatus(state="stopped", running=False, detail=self._detail)
+                return BrowserStatus(
+                    state="stopped",
+                    running=False,
+                    detail=self._detail,
+                    consecutive_failures=self._consecutive_failures,
+                    last_error=self._last_error,
+                )
             return await self._inspect_page()
 
     async def scan_chats(self, limit: int, capture_screenshot: bool) -> ChatScanResult:
@@ -118,8 +127,10 @@ class _BrowserWorker:
             try:
                 conversations = await extract_chat_summaries(page, limit)
             except Exception as exc:
+                self._record_operation_failure(exc)
                 screenshot_path = await self._screenshot(page, "chat-scan-failed")
                 raise BrowserOperationError(str(exc), screenshot_path) from exc
+            self._reset_operation_failures()
             screenshot_path = await self._screenshot(page, "chat-scan") if capture_screenshot else None
             return ChatScanResult(
                 scanned_at=datetime.now(timezone.utc),
@@ -136,8 +147,10 @@ class _BrowserWorker:
                     raise ValueError(f"未在当前沟通列表找到候选人：{candidate_name}")
                 detail = await extract_chat_detail(page)
             except Exception as exc:
+                self._record_operation_failure(exc)
                 screenshot_path = await self._screenshot(page, "chat-open-failed")
                 raise BrowserOperationError(str(exc), screenshot_path) from exc
+            self._reset_operation_failures()
             screenshot_path = await self._screenshot(page, "chat-detail") if capture_screenshot else None
             return ChatScanResult(
                 scanned_at=datetime.now(timezone.utc),
@@ -168,8 +181,10 @@ class _BrowserWorker:
                     raise BrowserSessionError(status.detail or "推荐牛人页面不可读取")
                 cards = await extract_talent_cards(page, limit)
             except Exception as exc:
+                self._record_operation_failure(exc)
                 screenshot_path = await self._screenshot(page, "talent-scan-failed")
                 raise BrowserOperationError(str(exc), screenshot_path) from exc
+            self._reset_operation_failures()
             screenshot_path = await self._screenshot(page, "talent-scan") if capture_screenshot else None
             return cards, page.url, screenshot_path
 
@@ -193,6 +208,7 @@ class _BrowserWorker:
             await self._close_resources()
             self._state = "stopped"
             self._detail = "浏览器会话已停止"
+            self._reset_operation_failures()
             return BrowserStatus(state="stopped", running=False, detail=self._detail)
 
     async def _inspect_page(self) -> BrowserStatus:
@@ -201,7 +217,12 @@ class _BrowserWorker:
         url = self._page.url
         title = await self._page.title()
         body_text = (await self._page.locator("body").inner_text())[:5000]
-        if any(keyword in body_text for keyword in BLOCKED_KEYWORDS):
+        if self._consecutive_failures >= settings.stop_after_automation_failures:
+            self._state = "blocked"
+            self._detail = (
+                f"连续失败 {self._consecutive_failures} 次，自动化已安全停机，请人工检查页面"
+            )
+        elif any(keyword in body_text for keyword in BLOCKED_KEYWORDS):
             self._state = "blocked"
             self._detail = "检测到验证码、账号异常或访问限制，已禁止继续扫描"
         elif "login" in url.lower() or any(keyword in body_text for keyword in LOGIN_KEYWORDS):
@@ -216,7 +237,22 @@ class _BrowserWorker:
             current_url=url,
             page_title=title or None,
             detail=self._detail,
+            consecutive_failures=self._consecutive_failures,
+            last_error=self._last_error,
         )
+
+    def _record_operation_failure(self, exc: Exception) -> None:
+        self._consecutive_failures += 1
+        self._last_error = f"{type(exc).__name__}: {exc}"
+        if self._consecutive_failures >= settings.stop_after_automation_failures:
+            self._state = "blocked"
+            self._detail = (
+                f"连续失败 {self._consecutive_failures} 次，自动化已安全停机，请人工检查页面"
+            )
+
+    def _reset_operation_failures(self) -> None:
+        self._consecutive_failures = 0
+        self._last_error = None
 
     async def _close_resources(self) -> None:
         if self._context:

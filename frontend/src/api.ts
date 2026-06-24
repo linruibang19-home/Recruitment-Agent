@@ -3,6 +3,7 @@ import type {
   ActionQueueEntry,
   BrowserStatus,
   Candidate,
+  CandidateDeleteResult,
   CandidateDetail,
   ChatScanResult,
   GreetingQuota,
@@ -104,6 +105,12 @@ export function openChat(candidateName: string): Promise<ChatScanResult> {
 
 export function fetchCandidateDetail(candidateId: number): Promise<CandidateDetail> {
   return request<CandidateDetail>(`/candidates/${candidateId}/detail`);
+}
+
+export function deleteCandidate(candidateId: number): Promise<CandidateDeleteResult> {
+  return request<CandidateDeleteResult>(`/candidates/${candidateId}?confirm=true`, {
+    method: "DELETE"
+  });
 }
 
 export function uploadResume(

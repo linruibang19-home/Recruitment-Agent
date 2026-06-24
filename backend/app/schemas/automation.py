@@ -13,6 +13,8 @@ class BrowserStatus(BaseModel):
     current_url: str | None = None
     page_title: str | None = None
     detail: str | None = None
+    consecutive_failures: int = 0
+    last_error: str | None = None
 
 
 class ChatSummary(BaseModel):

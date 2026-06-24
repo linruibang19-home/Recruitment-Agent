@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     recommendation_hour: int = 9
     max_daily_greetings: int = 50
     max_hourly_greetings: int = 10
+    stop_after_automation_failures: int = 3
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
 

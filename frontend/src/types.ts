@@ -61,6 +61,14 @@ export type BrowserStatus = {
   current_url?: string | null;
   page_title?: string | null;
   detail?: string | null;
+  consecutive_failures: number;
+  last_error?: string | null;
+};
+
+export type CandidateDeleteResult = {
+  candidate_id: number;
+  deleted_resume_files: number;
+  deleted: boolean;
 };
 
 export type ChatSummary = {

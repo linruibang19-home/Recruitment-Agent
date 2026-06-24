@@ -51,3 +51,8 @@ class CandidateRead(CandidateBase):
     created_at: datetime
     updated_at: datetime
 
+
+class CandidateDeleteResult(BaseModel):
+    candidate_id: int
+    deleted_resume_files: int
+    deleted: bool = True
