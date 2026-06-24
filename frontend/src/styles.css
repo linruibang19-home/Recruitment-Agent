@@ -1,8 +1,8 @@
 :root {
   color-scheme: light;
   font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #f5f7f8;
-  color: #1f2933;
+  background: #f4f6f7;
+  color: #17252b;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,7 +16,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f5f7f8;
+  background: #f4f6f7;
 }
 
 button {
@@ -25,41 +25,40 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 24px 18px;
-  background: #0d3638;
+  gap: 24px;
+  padding: 22px 14px;
+  background: #123b3d;
   color: #e8fbfa;
 }
 
 .brand {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  background: #14b8a6;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: #18a999;
   color: #ffffff;
   font-weight: 800;
 }
 
 .brand strong,
 .brand span,
-.sidebar-status strong,
-.sidebar-status span {
+.sidebar-settings span {
   display: block;
 }
 
@@ -68,8 +67,7 @@ button {
   line-height: 20px;
 }
 
-.brand span,
-.sidebar-status span {
+.brand span {
   color: #a5d8d6;
   font-size: 12px;
   line-height: 18px;
@@ -81,15 +79,22 @@ button {
   gap: 6px;
 }
 
+.nav-section-label {
+  padding: 0 12px 5px;
+  color: #7fb0ae;
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 42px;
+  height: 40px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: #b7d5d3;
   cursor: pointer;
@@ -98,24 +103,34 @@ button {
 
 .nav-item.active,
 .nav-item:hover {
-  background: #15575a;
+  background: #1c5557;
   color: #ffffff;
 }
 
-.sidebar-status {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+.sidebar-settings {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  align-items: start;
+  width: 100%;
+  height: 40px;
   margin-top: auto;
-  padding: 14px;
-  border: 1px solid rgba(184, 232, 229, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #b7d5d3;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-settings:hover,
+.sidebar-settings.active {
+  background: #1c5557;
+  color: #ffffff;
 }
 
 .workspace {
-  padding: 28px;
+  padding: 24px 28px;
   overflow: hidden;
 }
 
@@ -140,8 +155,8 @@ p {
 }
 
 h1 {
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 24px;
+  line-height: 32px;
   letter-spacing: 0;
 }
 
@@ -154,8 +169,8 @@ h2 {
 p {
   margin-top: 4px;
   color: #667985;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .status-strip {
@@ -287,7 +302,7 @@ p {
   border: 1px solid #dbe5e7;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 8px 20px rgba(26, 57, 66, 0.04);
+  box-shadow: 0 2px 6px rgba(26, 57, 66, 0.035);
 }
 
 .metric-panel {
@@ -324,6 +339,89 @@ p {
 .panel {
   min-width: 0;
   padding: 18px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dbe5e7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.settings-section.full {
+  grid-column: 1 / -1;
+}
+
+.settings-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  color: #0f766e;
+}
+
+.settings-heading h2 {
+  color: #17252b;
+}
+
+.settings-list {
+  margin: 0;
+}
+
+.settings-list > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, auto);
+  gap: 16px;
+  padding: 11px 0;
+  border-top: 1px solid #edf1f2;
+}
+
+.settings-list dt,
+.settings-list dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.settings-list dt {
+  color: #667985;
+}
+
+.settings-list dd {
+  color: #263b43;
+  font-weight: 600;
+  text-align: right;
+}
+
+.settings-list.horizontal {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.settings-list.horizontal > div {
+  display: block;
+}
+
+.settings-list.horizontal dd {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.value-ok {
+  color: #0f766e !important;
+}
+
+.value-error {
+  color: #b42318 !important;
 }
 
 .panel.wide {
@@ -653,26 +751,7 @@ p {
   line-height: 18px;
 }
 
-@media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 88px minmax(0, 1fr);
-  }
-
-  .brand div:not(.brand-mark),
-  .nav-item span,
-  .sidebar-status div {
-    display: none;
-  }
-
-  .brand {
-    grid-template-columns: 44px;
-    justify-content: center;
-  }
-
-  .nav-item {
-    justify-content: center;
-  }
-
+@media (max-width: 1050px) {
   .metric-grid,
   .check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -683,7 +762,7 @@ p {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .app-shell {
     display: block;
   }
@@ -692,12 +771,32 @@ p {
     position: static;
     flex-direction: row;
     align-items: center;
-    padding: 12px;
+    gap: 10px;
+    padding: 10px 12px;
     overflow-x: auto;
   }
 
   .nav-list {
     flex-direction: row;
+    gap: 4px;
+  }
+
+  .nav-section-label,
+  .brand > div:not(.brand-mark) {
+    display: none;
+  }
+
+  .nav-item {
+    width: auto;
+    min-width: max-content;
+    padding: 0 10px;
+  }
+
+  .sidebar-settings {
+    width: auto;
+    min-width: max-content;
+    margin-top: 0;
+    padding: 0 10px;
   }
 
   .workspace {
@@ -730,6 +829,11 @@ p {
   .pipeline,
   .check-grid,
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-layout,
+  .settings-list.horizontal {
     grid-template-columns: 1fr;
   }
 

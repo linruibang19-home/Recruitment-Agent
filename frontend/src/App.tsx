@@ -15,6 +15,7 @@ import {
   Play,
   RefreshCw,
   ScanLine,
+  Settings,
   ShieldCheck,
   Square,
   Users
@@ -30,16 +31,26 @@ import {
 import { actionQueue, candidates as fallbackCandidates, runEvents } from "./data";
 import type { BrowserStatus, Candidate, ChatScanResult, Job, Metric, PipelineStage } from "./types";
 
-type ViewId = "dashboard" | "jobs" | "candidates" | "actions" | "automation" | "audit";
+type ViewId = "dashboard" | "jobs" | "candidates" | "actions" | "automation" | "audit" | "settings";
 
 const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }> = [
-  { id: "dashboard", label: "控制台", icon: LayoutDashboard },
-  { id: "jobs", label: "岗位", icon: BriefcaseBusiness },
-  { id: "candidates", label: "候选人", icon: Users },
+  { id: "dashboard", label: "工作台", icon: LayoutDashboard },
+  { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
+  { id: "candidates", label: "候选人库", icon: Users },
   { id: "actions", label: "待确认", icon: ListChecks },
-  { id: "automation", label: "自动化", icon: Bot },
+  { id: "automation", label: "沟通采集", icon: Bot },
   { id: "audit", label: "审计日志", icon: ClipboardList }
 ];
+
+const viewMeta: Record<ViewId, { title: string; description: string }> = {
+  dashboard: { title: "招聘工作台", description: "查看岗位、候选人和自动化服务的当前状态。" },
+  jobs: { title: "岗位管理", description: "维护招聘岗位及候选人匹配条件。" },
+  candidates: { title: "候选人库", description: "查看已采集候选人的基础资料和处理进度。" },
+  actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
+  automation: { title: "沟通采集", description: "连接 BOSS 沟通页并执行只读信息采集。" },
+  audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
+  settings: { title: "系统设置", description: "查看本地服务、数据存储和自动化安全策略。" }
+};
 
 function candidateEducation(candidate: Candidate): string {
   const parts = [candidate.education_level, candidate.school].filter(Boolean);
@@ -232,6 +243,7 @@ export function App() {
   const visibleJobs = data?.jobs.items ?? [];
   const metrics = useMemo(() => buildMetrics(data, visibleCandidates), [data, visibleCandidates]);
   const pipeline = useMemo(() => buildPipeline(visibleCandidates), [visibleCandidates]);
+  const currentView = viewMeta[activeView];
   const healthEvents = useMemo(
     () => [
       {
@@ -253,14 +265,15 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar" aria-label="主导航">
         <div className="brand">
-          <div className="brand-mark">RA</div>
+          <div className="brand-mark">招</div>
           <div>
-            <strong>招聘 Agent</strong>
-            <span>本地控制台</span>
+            <strong>招聘工作台</strong>
+            <span>候选人管理系统</span>
           </div>
         </div>
 
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="功能模块">
+          <span className="nav-section-label">功能模块</span>
           {navItems.map((item) => (
             <button
               className={activeView === item.id ? "nav-item active" : "nav-item"}
@@ -274,20 +287,21 @@ export function App() {
           ))}
         </nav>
 
-        <div className="sidebar-status">
-          <ShieldCheck size={18} />
-          <div>
-            <strong>受控自动化</strong>
-            <span>发送动作默认进入确认队列</span>
-          </div>
-        </div>
+        <button
+          className={activeView === "settings" ? "sidebar-settings active" : "sidebar-settings"}
+          onClick={() => setActiveView("settings")}
+          type="button"
+        >
+          <Settings size={18} />
+          <span>系统设置</span>
+        </button>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
           <div>
-            <h1>招聘 Agent 控制台</h1>
-            <p>Phase 4 已接入 BOSS 沟通页只读扫描，所有发送动作仍需人工确认。</p>
+            <h1>{currentView.title}</h1>
+            <p>{currentView.description}</p>
           </div>
           <div className="topbar-actions">
             <div className={error ? "status-strip warning" : "status-strip"}>
@@ -342,8 +356,8 @@ export function App() {
               <article className="panel">
                 <div className="panel-header">
                   <div>
-                    <h2>自动化健康状态</h2>
-                    <p>后端服务与后续自动化模块接入状态。</p>
+                    <h2>服务状态</h2>
+                    <p>本地数据与浏览器采集服务。</p>
                   </div>
                   <CheckCircle2 size={20} />
                 </div>
@@ -372,7 +386,7 @@ export function App() {
               </article>
 
               <ActionQueuePanel />
-              <SelfCheckPanel />
+              <RuntimePanel />
             </section>
           </>
         )}
@@ -563,6 +577,88 @@ export function App() {
             </article>
           </section>
         )}
+
+        {activeView === "settings" && (
+          <section className="settings-layout">
+            <article className="settings-section">
+              <div className="settings-heading">
+                <div>
+                  <h2>运行环境</h2>
+                  <p>当前服务仅在本机运行，登录信息和采集文件不会进入 Git。</p>
+                </div>
+                <Database size={19} />
+              </div>
+              <dl className="settings-list">
+                <div>
+                  <dt>后端 API</dt>
+                  <dd className={error ? "value-error" : "value-ok"}>{error ? "连接异常" : "运行正常"}</dd>
+                </div>
+                <div>
+                  <dt>PostgreSQL</dt>
+                  <dd className={data?.databaseStatus === "ok" ? "value-ok" : "value-error"}>
+                    {data?.databaseStatus === "ok" ? "已连接" : "未连接"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>浏览器会话</dt>
+                  <dd>{browserStateLabel(data?.browser)}</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article className="settings-section">
+              <div className="settings-heading">
+                <div>
+                  <h2>自动化策略</h2>
+                  <p>外部写操作默认关闭，消息发送必须经过人工确认。</p>
+                </div>
+                <ShieldCheck size={19} />
+              </div>
+              <dl className="settings-list">
+                <div>
+                  <dt>运行模式</dt>
+                  <dd>只读采集</dd>
+                </div>
+                <div>
+                  <dt>每日主动触达上限</dt>
+                  <dd>50 次</dd>
+                </div>
+                <div>
+                  <dt>验证码或账号异常</dt>
+                  <dd>立即停止</dd>
+                </div>
+                <div>
+                  <dt>约面及发送动作</dt>
+                  <dd>人工确认</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article className="settings-section full">
+              <div className="settings-heading">
+                <div>
+                  <h2>本地数据</h2>
+                  <p>敏感数据保存在项目的本地运行目录中。</p>
+                </div>
+                <FileText size={19} />
+              </div>
+              <dl className="settings-list horizontal">
+                <div>
+                  <dt>浏览器登录态</dt>
+                  <dd>data/profiles/boss-chrome</dd>
+                </div>
+                <div>
+                  <dt>审计截图</dt>
+                  <dd>data/screenshots</dd>
+                </div>
+                <div>
+                  <dt>简历文件</dt>
+                  <dd>data/resumes</dd>
+                </div>
+              </dl>
+            </article>
+          </section>
+        )}
       </main>
     </div>
   );
@@ -596,21 +692,21 @@ function ActionQueuePanel({ full = false }: { full?: boolean }) {
   );
 }
 
-function SelfCheckPanel() {
+function RuntimePanel() {
   return (
     <article className="panel full">
       <div className="panel-header">
         <div>
-          <h2>Phase 4 自检</h2>
-          <p>验证浏览器状态、只读扫描、附件识别和审计日志链路。</p>
+          <h2>运行信息</h2>
+          <p>当前已启用的数据接口和采集能力。</p>
         </div>
         <Database size={20} />
       </div>
       <div className="check-grid">
-        <span>GET /api/health/database</span>
-        <span>GET /api/automation/browser/status</span>
-        <span>POST /api/automation/chat/scan</span>
-        <span>GET /api/audit-logs</span>
+        <span>数据库连接正常</span>
+        <span>浏览器会话管理</span>
+        <span>沟通列表只读采集</span>
+        <span>操作记录可追溯</span>
       </div>
     </article>
   );
