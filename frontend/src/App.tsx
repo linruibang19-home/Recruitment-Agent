@@ -842,15 +842,20 @@ export function App() {
                   <button
                     className="secondary-button"
                     disabled={automationBusy !== null || data?.browser.running}
-                    onClick={() => void runAutomationAction(
-                      data?.browser.state === "login_required" ? "login" : "start"
-                    )}
+                    onClick={() => void runAutomationAction("login")}
                     type="button"
                   >
-                    {data?.browser.state === "login_required" ? <LogIn size={16} /> : <Play size={16} />}
-                    <span>
-                      {data?.browser.state === "login_required" ? "打开登录窗口" : "启动浏览器"}
-                    </span>
+                    <LogIn size={16} />
+                    <span>打开登录窗口</span>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || data?.browser.running}
+                    onClick={() => void runAutomationAction("start")}
+                    type="button"
+                  >
+                    <Play size={16} />
+                    <span>{automationBusy === "start" ? "启动中" : "启动自动化"}</span>
                   </button>
                   <button
                     className="primary-button"

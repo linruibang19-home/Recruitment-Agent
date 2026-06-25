@@ -118,9 +118,10 @@ class _BrowserWorker:
                     config.user_data_dir,
                     **launch_options,
                 )
-                self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+                self._page = await self._context.new_page()
                 await self._page.goto(config.chat_url, wait_until="domcontentloaded", timeout=30_000)
                 await self._page.wait_for_timeout(1_000)
+                self._select_boss_page()
                 initial_status = await self._inspect_page()
                 if initial_status.state == "login_required":
                     await self._context.clear_cookies()
@@ -132,7 +133,22 @@ class _BrowserWorker:
                         running=False,
                         detail=self._detail,
                     )
-                    await self._page.wait_for_timeout(800)
+                if initial_status.state == "ready":
+                    await self._page.wait_for_timeout(7_000)
+                    self._select_boss_page()
+                    stable_status = await self._inspect_page()
+                    if stable_status.state != "ready":
+                        await self._close_resources()
+                        self._state = "error"
+                        self._detail = (
+                            "BOSS 页面关闭了自动化标签页，当前 Playwright 接入不可用；"
+                            "请改用浏览器扩展采集模式"
+                        )
+                        return BrowserStatus(
+                            state="error",
+                            running=False,
+                            detail=self._detail,
+                        )
                 await self._page.bring_to_front()
                 self._reset_operation_failures()
                 return await self._inspect_page()
@@ -158,14 +174,26 @@ class _BrowserWorker:
 
     async def status(self) -> BrowserStatus:
         async with self._lock:
+            if (
+                self._state == "login_required"
+                and self._login_process
+                and self._login_process.returncode is not None
+            ):
+                self._login_process = None
+                self._detail = "登录窗口已关闭；如已完成扫码，请点击启动自动化"
             if not self._context or not self._page or self._page.is_closed():
                 return BrowserStatus(
-                    state=self._state if self._state == "login_required" else "stopped",
+                    state=(
+                        self._state
+                        if self._state in {"login_required", "blocked", "error"}
+                        else "stopped"
+                    ),
                     running=False,
                     detail=self._detail,
                     consecutive_failures=self._consecutive_failures,
                     last_error=self._last_error,
                 )
+            self._select_boss_page()
             return await self._inspect_page()
 
     async def open_login(self) -> BrowserStatus:
@@ -287,6 +315,7 @@ class _BrowserWorker:
             return BrowserStatus(state="stopped", running=False, detail=self._detail)
 
     async def _inspect_page(self) -> BrowserStatus:
+        self._select_boss_page()
         if not self._page or self._page.is_closed():
             return BrowserStatus(state="stopped", running=False, detail=self._detail)
         url = self._page.url
@@ -307,6 +336,9 @@ class _BrowserWorker:
         ):
             self._state = "login_required"
             self._detail = "请在扫码登录页使用 BOSS 直聘 App 完成登录"
+        elif "zhipin.com" not in url.lower():
+            self._state = "error"
+            self._detail = "当前自动化标签页不是 BOSS 直聘页面，请停止后重新启动"
         else:
             self._state = "ready"
             self._detail = "浏览器会话可用，只读扫描已就绪"
@@ -319,6 +351,14 @@ class _BrowserWorker:
             consecutive_failures=self._consecutive_failures,
             last_error=self._last_error,
         )
+
+    def _select_boss_page(self) -> None:
+        if not self._context:
+            return
+        for page in reversed(self._context.pages):
+            if not page.is_closed() and "zhipin.com" in page.url.lower():
+                self._page = page
+                return
 
     def _record_operation_failure(self, exc: Exception) -> None:
         self._consecutive_failures += 1
