@@ -65,6 +65,33 @@ export type BrowserStatus = {
   last_error?: string | null;
 };
 
+export type ExtensionCommandType = "scan_chats" | "read_current_chat" | "scan_talents";
+
+export type ExtensionCommand = {
+  id: number;
+  extension_id?: string | null;
+  command_type: ExtensionCommandType;
+  status: "queued" | "running" | "completed" | "failed";
+  payload: Record<string, unknown>;
+  result: Record<string, unknown>;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+  claimed_at?: string | null;
+  completed_at?: string | null;
+};
+
+export type ExtensionStatus = {
+  connected: boolean;
+  extension_id?: string | null;
+  status: string;
+  page_url?: string | null;
+  page_title?: string | null;
+  page_type?: string | null;
+  last_seen_at?: string | null;
+  recent_commands: ExtensionCommand[];
+};
+
 export type CandidateDeleteResult = {
   candidate_id: number;
   deleted_resume_files: number;

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse
 
 from app.api.routes.candidates import router as candidates_router
+from app.api.routes.extension import router as extension_router
 from app.api.routes.automation import router as automation_router
 from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(talents_router, prefix="/api")
     app.include_router(automation_router, prefix="/api")
     app.include_router(workflows_router, prefix="/api")
+    app.include_router(extension_router, prefix="/api")
     return app
 
 

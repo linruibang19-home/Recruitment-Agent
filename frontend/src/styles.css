@@ -1576,7 +1576,7 @@ p {
 
   .automation-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr 40px;
+    grid-template-columns: 1fr;
   }
 
   .metric-grid,

@@ -14,15 +14,11 @@ import {
   FileUp,
   LayoutDashboard,
   ListChecks,
-  LogIn,
-  Paperclip,
-  Play,
   RefreshCw,
   Search,
   ScanLine,
   Settings,
   ShieldCheck,
-  Square,
   ThumbsDown,
   ThumbsUp,
   Users,
@@ -34,13 +30,8 @@ import {
   fetchCandidateDetail,
   fetchDashboardData,
   generateRecommendations,
-  openChat,
-  openBrowserLogin,
-  scanChats,
-  scanRecommendedTalents,
-  startBrowser,
+  queueExtensionCommand,
   startWorkflow,
-  stopBrowser,
   retryWorkflow,
   reviewWorkflow,
   uploadResume,
@@ -50,10 +41,8 @@ import { candidates as fallbackCandidates, runEvents } from "./data";
 import { WorkflowView } from "./WorkflowView";
 import type {
   ActionQueueEntry,
-  BrowserStatus,
   Candidate,
   CandidateDetail,
-  ChatScanResult,
   GreetingQuota,
   Job,
   Metric,
@@ -171,18 +160,6 @@ function buildMetrics(data: DashboardData | null, candidates: Candidate[]): Metr
   ];
 }
 
-function browserStateLabel(status?: BrowserStatus | null): string {
-  const labels = {
-    stopped: "未启动",
-    starting: "启动中",
-    ready: "可扫描",
-    login_required: "等待登录",
-    blocked: "已安全停机",
-    error: "异常"
-  };
-  return status ? labels[status.state] : "未知";
-}
-
 function auditActionLabel(actionType: string): string {
   const labels: Record<string, string> = {
     browser_start: "启动浏览器",
@@ -278,7 +255,6 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [automationBusy, setAutomationBusy] = useState<string | null>(null);
   const [automationNotice, setAutomationNotice] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<ChatScanResult | null>(null);
   const [candidateDetail, setCandidateDetail] = useState<CandidateDetail | null>(null);
   const [candidateDetailLoading, setCandidateDetailLoading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -438,7 +414,7 @@ export function App() {
     setTalentBusy(true);
     setTalentNotice(null);
     try {
-      const result = await scanRecommendedTalents({
+      const command = await queueExtensionCommand("scan_talents", {
         job_id: talentJobId,
         city: talentCity.trim() || undefined,
         experience: splitInput(talentExperience),
@@ -447,13 +423,11 @@ export function App() {
         salary_keywords: splitInput(talentSalary),
         required_keywords: splitInput(talentKeywords),
         limit: 30,
-        capture_screenshot: true
+        capture_screenshot: false
       });
-      setTalentResult(result);
+      setTalentResult(null);
       await loadDashboard();
-      setTalentNotice(
-        `读取 ${result.total_read} 张卡片，匹配 ${result.matched_count} 人，生成 ${result.drafted_count} 条草稿。`
-      );
+      setTalentNotice(`扫描任务 #${command.id} 已提交，请保持“推荐牛人”页面位于当前标签页。`);
     } catch (err) {
       setTalentNotice(err instanceof Error ? err.message : "推荐牛人扫描失败");
     } finally {
@@ -522,31 +496,20 @@ export function App() {
   }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
-    async (action: "login" | "start" | "stop" | "scan", candidateName?: string) => {
-      setAutomationBusy(candidateName ? `open:${candidateName}` : action);
+    async (action: "refresh" | "scan_chats" | "read_current_chat") => {
+      setAutomationBusy(action);
       setAutomationNotice(null);
       try {
-        if (action === "login") {
-          const status = await openBrowserLogin();
-          setAutomationNotice(status.detail ?? "普通 Chrome 登录窗口已打开");
-        } else if (action === "start") {
-          const status = await startBrowser();
-          setAutomationNotice(status.detail ?? "浏览器已启动");
-        } else if (action === "stop") {
-          const status = await stopBrowser();
-          setScanResult(null);
-          setAutomationNotice(status.detail ?? "浏览器已停止");
-        } else if (candidateName) {
-          const result = await openChat(candidateName);
-          setScanResult((current) => ({
-            ...result,
-            conversations: current?.conversations ?? []
-          }));
-          setAutomationNotice(`已读取 ${candidateName} 的聊天详情，未执行发送动作。`);
+        if (action === "refresh") {
+          await loadDashboard();
+          setAutomationNotice("已重新检测扩展连接状态。");
         } else {
-          const result = await scanChats();
-          setScanResult(result);
-          setAutomationNotice(`已读取 ${result.conversations.length} 个会话，未执行发送动作。`);
+          const command = await queueExtensionCommand(action, { limit: 30 });
+          setAutomationNotice(
+            action === "scan_chats"
+              ? `沟通列表扫描任务 #${command.id} 已提交。`
+              : `当前聊天读取任务 #${command.id} 已提交，结果会写入候选人库并生成待确认草稿。`
+          );
         }
         await loadDashboard();
       } catch (err) {
@@ -566,16 +529,16 @@ export function App() {
   const healthEvents = useMemo(
     () => [
       {
-        label: "浏览器会话",
-        status: data?.browser.state === "ready" ? ("ready" as const) : ("warning" as const),
-        detail: data?.browser.detail ?? "尚未启动"
+        label: "Chrome 扩展",
+        status: data?.extension.connected ? ("ready" as const) : ("warning" as const),
+        detail: data?.extension.connected ? `已连接：${data.extension.page_title ?? "BOSS 页面"}` : "等待连接"
       },
       {
         label: "PostgreSQL",
         status: data?.databaseStatus === "ok" ? ("ready" as const) : ("warning" as const),
         detail: data?.databaseStatus === "ok" ? "已连接" : "等待连接"
       },
-      ...runEvents.filter((event) => !["PostgreSQL", "浏览器会话"].includes(event.label))
+      ...runEvents.filter((event) => !["PostgreSQL", "浏览器会话", "Chrome 扩展"].includes(event.label))
     ],
     [data]
   );
@@ -825,128 +788,92 @@ export function App() {
             <article className="panel full">
               <div className="panel-header">
                 <div>
-                  <h2>浏览器自动化</h2>
-                  <p>使用独立 Chrome 登录态读取沟通列表、聊天详情和 PDF 附件卡片。</p>
+                  <h2>Chrome 扩展采集</h2>
+                  <p>使用当前普通 Chrome 的登录态读取沟通页，不再启动独立自动化浏览器。</p>
                 </div>
                 <Bot size={20} />
               </div>
               <div className="automation-toolbar">
-                <div className={`browser-state state-${data?.browser.state ?? "stopped"}`}>
+                <div className={`browser-state state-${data?.extension.connected ? "ready" : "stopped"}`}>
                   <span className="status-dot" />
                   <div>
-                    <strong>{browserStateLabel(data?.browser)}</strong>
-                    <small>{data?.browser.detail ?? "点击启动浏览器后手工登录 BOSS 直聘"}</small>
+                    <strong>{data?.extension.connected ? "扩展已连接" : "等待扩展连接"}</strong>
+                    <small>
+                      {data?.extension.page_title ??
+                        "在 chrome://extensions 加载 browser-extension，并打开已登录的 BOSS 页面"}
+                    </small>
                   </div>
                 </div>
                 <div className="automation-actions">
                   <button
                     className="secondary-button"
-                    disabled={automationBusy !== null || data?.browser.running}
-                    onClick={() => void runAutomationAction("login")}
+                    disabled={automationBusy !== null}
+                    onClick={() => void runAutomationAction("refresh")}
                     type="button"
                   >
-                    <LogIn size={16} />
-                    <span>打开登录窗口</span>
+                    <RefreshCw size={16} />
+                    <span>检测扩展</span>
                   </button>
                   <button
                     className="secondary-button"
-                    disabled={automationBusy !== null || data?.browser.running}
-                    onClick={() => void runAutomationAction("start")}
-                    type="button"
-                  >
-                    <Play size={16} />
-                    <span>{automationBusy === "start" ? "启动中" : "启动自动化"}</span>
-                  </button>
-                  <button
-                    className="primary-button"
-                    disabled={automationBusy !== null || data?.browser.state !== "ready"}
-                    onClick={() => void runAutomationAction("scan")}
+                    disabled={automationBusy !== null || !data?.extension.connected}
+                    onClick={() => void runAutomationAction("scan_chats")}
                     type="button"
                   >
                     <ScanLine size={16} />
-                    <span>{automationBusy === "scan" ? "扫描中" : "扫描沟通列表"}</span>
+                    <span>{automationBusy === "scan_chats" ? "提交中" : "扫描沟通列表"}</span>
                   </button>
                   <button
-                    className="icon-button"
-                    disabled={automationBusy !== null || !data?.browser.running}
-                    onClick={() => void runAutomationAction("stop")}
-                    title="停止浏览器会话"
+                    className="primary-button"
+                    disabled={automationBusy !== null || !data?.extension.connected}
+                    onClick={() => void runAutomationAction("read_current_chat")}
                     type="button"
                   >
-                    <Square size={16} />
+                    <Eye size={16} />
+                    <span>{automationBusy === "read_current_chat" ? "提交中" : "读取当前聊天"}</span>
                   </button>
                 </div>
               </div>
               {automationNotice && <div className="automation-notice">{automationNotice}</div>}
               <div className="safety-strip">
                 <ShieldCheck size={18} />
-                <span>只读模式：不填写输入框、不发送消息；遇到登录、验证码或账号异常会停止扫描。</span>
+                <span>只读模式：只读取当前页面和附件直链，不填写输入框、不点击发送；所有回复仅生成待确认草稿。</span>
               </div>
             </article>
             <article className="panel full">
               <div className="panel-header">
                 <div>
-                  <h2>沟通页扫描结果</h2>
-                  <p>点击候选人可读取当前聊天详情并识别附件，不会发送消息。</p>
+                  <h2>扩展任务</h2>
+                  <p>任务由当前激活的 BOSS 标签页执行，完成后自动写入候选人库和审计日志。</p>
                 </div>
-                <ScanLine size={20} />
+                <ClipboardList size={20} />
               </div>
-              {scanResult?.conversations.length ? (
-                <div className="conversation-list">
-                  {scanResult.conversations.map((conversation, index) => (
-                    <div className="conversation-row" key={`${conversation.name}-${index}`}>
+              {data?.extension.recent_commands.length ? (
+                <div className="audit-list">
+                  {data.extension.recent_commands.map((command) => (
+                    <div className="audit-row" key={command.id}>
+                      <span className={`audit-status ${command.status === "completed" ? "ok" : ""}`} />
                       <div>
-                        <strong>{conversation.name}</strong>
-                        <span>{conversation.preview ?? conversation.raw_text}</span>
+                        <strong>
+                          #{command.id}{" "}
+                          {command.command_type === "scan_chats"
+                            ? "扫描沟通列表"
+                            : command.command_type === "read_current_chat"
+                              ? "读取当前聊天"
+                              : "扫描推荐牛人"}
+                        </strong>
+                        <small>{command.error_message ?? `状态：${command.status}`}</small>
                       </div>
-                      <button
-                        className="text-button"
-                        disabled={automationBusy !== null}
-                        onClick={() => void runAutomationAction("scan", conversation.name)}
-                        type="button"
-                      >
-                        {automationBusy === `open:${conversation.name}` ? "读取中" : "读取详情"}
-                      </button>
+                      <time>{new Date(command.created_at).toLocaleTimeString("zh-CN")}</time>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="empty-state">启动浏览器并手工登录后，可执行只读扫描。</div>
+                <div className="empty-state">
+                  扩展安装完成后，在 BOSS 沟通页点击“扫描沟通列表”；选中某位候选人后点击“读取当前聊天”。
+                </div>
               )}
             </article>
-            {scanResult?.detail && (
-              <article className="panel full">
-                <div className="panel-header">
-                  <div>
-                    <h2>{scanResult.detail.candidate_name ?? "当前候选人"}的聊天详情</h2>
-                    <p>读取到 {scanResult.detail.messages.length} 条消息和 {scanResult.detail.attachments.length} 个附件。</p>
-                  </div>
-                  <Paperclip size={20} />
-                </div>
-                <div className="detail-grid">
-                  <div>
-                    <strong>最近消息</strong>
-                    <div className="message-list">
-                      {scanResult.detail.messages.slice(-8).map((message, index) => (
-                        <span key={`${message}-${index}`}>{message}</span>
-                      ))}
-                      {!scanResult.detail.messages.length && <span>未识别到消息文本。</span>}
-                    </div>
-                  </div>
-                  <div>
-                    <strong>附件识别</strong>
-                    <div className="message-list">
-                      {scanResult.detail.attachments.map((attachment, index) => (
-                        <span key={`${attachment.filename}-${index}`}>
-                          {attachment.filename ?? attachment.preview_text ?? "简历附件卡片"}
-                        </span>
-                      ))}
-                      {!scanResult.detail.attachments.length && <span>当前聊天未识别到 PDF 附件。</span>}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            )}
           </section>
         )}
 
@@ -1016,14 +943,14 @@ export function App() {
                   </dd>
                 </div>
                 <div>
-                  <dt>浏览器会话</dt>
-                  <dd>{browserStateLabel(data?.browser)}</dd>
+                  <dt>Chrome 扩展</dt>
+                  <dd className={data?.extension.connected ? "value-ok" : "value-error"}>
+                    {data?.extension.connected ? "已连接" : "未连接"}
+                  </dd>
                 </div>
                 <div>
-                  <dt>连续自动化失败</dt>
-                  <dd className={(data?.browser.consecutive_failures ?? 0) > 0 ? "value-error" : "value-ok"}>
-                    {data?.browser.consecutive_failures ?? 0} / 3
-                  </dd>
+                  <dt>当前采集页面</dt>
+                  <dd>{data?.extension.page_type ?? "未检测"}</dd>
                 </div>
               </dl>
             </article>
@@ -1553,8 +1480,10 @@ function ActionQueuePanel({
                 <strong>
                   {item.action_type === "interview_invite"
                     ? "约面邀请"
-                    : item.action_type === "request_resume_greeting"
+                    : ["request_resume_greeting", "request_resume_chat"].includes(item.action_type)
                       ? "索要简历"
+                      : item.action_type === "resume_attachment_detected"
+                        ? "发现简历附件"
                       : item.action_type}
                 </strong>
                 <span>{item.candidate_name ?? "未知候选人"} / {item.job_title ?? "未关联岗位"}</span>

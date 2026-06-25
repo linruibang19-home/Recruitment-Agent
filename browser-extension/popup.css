@@ -1,0 +1,14 @@
+* { box-sizing: border-box; }
+body { width: 320px; margin: 0; background: #f5f7f8; color: #1f2933; font: 14px/1.5 system-ui, sans-serif; }
+main { padding: 16px; }
+header, section { display: flex; align-items: center; gap: 12px; }
+header { padding-bottom: 14px; border-bottom: 1px solid #dbe5e7; }
+.mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 6px; background: #0f766e; color: white; font-weight: 800; }
+header strong, header small, section strong { display: block; }
+header small, section p, .safety { margin: 0; color: #667985; font-size: 12px; }
+section { margin: 16px 0; padding: 12px; border: 1px solid #dbe5e7; border-radius: 7px; background: white; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #f59e0b; }
+.dot.online { background: #14b8a6; }
+.dot.offline { background: #dc2626; }
+button { width: 100%; height: 38px; border: 0; border-radius: 6px; background: #0f766e; color: white; cursor: pointer; font-weight: 700; }
+.safety { margin-top: 10px; text-align: center; }

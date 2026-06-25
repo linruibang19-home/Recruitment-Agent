@@ -1,19 +1,18 @@
 import type {
   AuditLog,
   ActionQueueEntry,
-  BrowserStatus,
   Candidate,
   CandidateDeleteResult,
   CandidateDetail,
-  ChatScanResult,
+  ExtensionCommand,
+  ExtensionCommandType,
+  ExtensionStatus,
   GreetingQuota,
   Job,
   PageResponse,
   Recommendation,
   RecommendationRun,
   ResumeProcessResult,
-  TalentScanInput,
-  TalentScanResult,
   WorkflowRun,
   WorkflowStartInput
 } from "./types";
@@ -37,7 +36,7 @@ export type DashboardData = {
   databaseStatus: string;
   jobs: PageResponse<Job>;
   candidates: PageResponse<Candidate>;
-  browser: BrowserStatus;
+  extension: ExtensionStatus;
   auditLogs: PageResponse<AuditLog>;
   recommendations: Recommendation[];
   actions: PageResponse<ActionQueueEntry>;
@@ -50,7 +49,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     databaseHealth,
     jobs,
     candidates,
-    browser,
+    extension,
     auditLogs,
     recommendations,
     actions,
@@ -60,7 +59,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     request<{ status: string }>("/health/database"),
     request<PageResponse<Job>>("/jobs?limit=20"),
     request<PageResponse<Candidate>>("/candidates?limit=20"),
-    request<BrowserStatus>("/automation/browser/status"),
+    request<ExtensionStatus>("/extension/status"),
     request<PageResponse<AuditLog>>("/audit-logs?limit=30"),
     request<Recommendation[]>("/recommendations/today"),
     request<PageResponse<ActionQueueEntry>>("/actions?limit=50"),
@@ -72,7 +71,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     databaseStatus: databaseHealth.status,
     jobs,
     candidates,
-    browser,
+    extension,
     auditLogs,
     recommendations,
     actions,
@@ -81,29 +80,13 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   };
 }
 
-export function startBrowser(): Promise<BrowserStatus> {
-  return request<BrowserStatus>("/automation/browser/start", { method: "POST" });
-}
-
-export function openBrowserLogin(): Promise<BrowserStatus> {
-  return request<BrowserStatus>("/automation/browser/login", { method: "POST" });
-}
-
-export function stopBrowser(): Promise<BrowserStatus> {
-  return request<BrowserStatus>("/automation/browser/stop", { method: "POST" });
-}
-
-export function scanChats(limit = 10): Promise<ChatScanResult> {
-  return request<ChatScanResult>("/automation/chat/scan", {
+export function queueExtensionCommand(
+  commandType: ExtensionCommandType,
+  payload: Record<string, unknown> = {}
+): Promise<ExtensionCommand> {
+  return request<ExtensionCommand>("/extension/commands", {
     method: "POST",
-    body: JSON.stringify({ limit, capture_screenshot: true })
-  });
-}
-
-export function openChat(candidateName: string): Promise<ChatScanResult> {
-  return request<ChatScanResult>("/automation/chat/open", {
-    method: "POST",
-    body: JSON.stringify({ candidate_name: candidateName, capture_screenshot: true })
+    body: JSON.stringify({ command_type: commandType, payload })
   });
 }
 
@@ -153,13 +136,6 @@ export function decideAction(
   return request<ActionQueueEntry>(`/actions/${actionId}/${decision}`, {
     method: "POST",
     body: JSON.stringify({ note: note ?? null })
-  });
-}
-
-export function scanRecommendedTalents(input: TalentScanInput): Promise<TalentScanResult> {
-  return request<TalentScanResult>("/automation/recommend/scan", {
-    method: "POST",
-    body: JSON.stringify(input)
   });
 }
 

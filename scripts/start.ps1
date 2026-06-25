@@ -22,6 +22,17 @@ if ($OccupiedPorts) {
     throw "Required ports are already in use: $Summary"
 }
 
+Push-Location (Join-Path $Root "backend")
+try {
+    python -m alembic -c alembic.ini upgrade head
+    if ($LASTEXITCODE -ne 0) {
+        throw "Database migration failed."
+    }
+}
+finally {
+    Pop-Location
+}
+
 $Backend = Start-Process -FilePath "python" `
     -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000" `
     -WorkingDirectory (Join-Path $Root "backend") `

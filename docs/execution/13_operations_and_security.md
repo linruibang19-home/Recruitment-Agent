@@ -31,19 +31,8 @@
 
 ## BOSS 首次登录
 
-控制台启动浏览器时会先检查沟通页。登录失效后自动进入官方扫码页：
-
-```text
-https://sao.zhipin.com/
-```
-
-如果扫码页受自动化浏览器影响而无法点击或持续刷新，先停止控制台中的浏览器会话，然后运行：
-
-```powershell
-.\scripts\login-boss.ps1
-```
-
-该脚本使用同一个独立 Chrome profile，但不附加 Playwright 自动化参数。完成扫码登录后关闭窗口，再从控制台启动浏览器，会复用已保存的登录态。
+使用普通 Chrome 打开 BOSS 直聘并完成官方扫码登录，然后在 `chrome://extensions` 加载项目的
+`browser-extension` 文件夹。扩展直接使用当前 Chrome 登录态，不再创建独立浏览器 profile。
 
 ## 故障恢复
 
@@ -52,7 +41,7 @@ https://sao.zhipin.com/
 3. 执行 `scripts/stop.ps1`。
 4. 确认 PostgreSQL 服务运行。
 5. 执行 `scripts/start.ps1`。
-6. 检查 `/api/health/database` 和 `/api/health/automation`。
+6. 检查 `/api/health/database` 和 `/api/extension/status`。
 
 浏览器出现验证码、登录失效、账号异常或连续失败时，系统停止扫描。必须人工处理页面后停止并重新启动浏览器会话。
 

@@ -290,3 +290,55 @@ class AuditLog(Base):
         Index("audit_logs_action_time_idx", "action_type", "created_at"),
         Index("audit_logs_entity_idx", "entity_type", "entity_id"),
     )
+
+
+class ExtensionSession(Base, TimestampMixin):
+    __tablename__ = "extension_sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    extension_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="offline")
+    page_url: Mapped[str | None] = mapped_column(Text)
+    page_title: Mapped[str | None] = mapped_column(Text)
+    page_type: Mapped[str | None] = mapped_column(Text)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('online','offline','unsupported_page','error')",
+            name="extension_sessions_status_check",
+        ),
+        Index("extension_sessions_last_seen_idx", "last_seen_at"),
+    )
+
+
+class ExtensionCommand(Base, TimestampMixin):
+    __tablename__ = "extension_commands"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    extension_id: Mapped[str | None] = mapped_column(Text)
+    command_type: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="queued")
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    error_message: Mapped[str | None] = mapped_column(Text)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "command_type in ('scan_chats','read_current_chat','scan_talents')",
+            name="extension_commands_type_check",
+        ),
+        CheckConstraint(
+            "status in ('queued','running','completed','failed')",
+            name="extension_commands_status_check",
+        ),
+        Index("extension_commands_status_created_idx", "status", "created_at"),
+        Index("extension_commands_extension_status_idx", "extension_id", "status"),
+    )

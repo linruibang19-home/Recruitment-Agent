@@ -2,7 +2,7 @@
 
 本地运行的招聘 Agent 控制台，用于辅助 BOSS 直聘企业端候选人沟通、简历收集、简历解析、候选人画像、岗位匹配评分和每日推荐。
 
-当前架构：`FastAPI + React + PostgreSQL + Playwright + LangGraph`。
+当前架构：`FastAPI + React + PostgreSQL + Chrome Extension + LangGraph`。
 
 ## 文档
 
@@ -25,6 +25,7 @@ backend/        FastAPI 后端
 frontend/       React + Vite 前端
 docs/execution/ 项目执行文档
 data/           本地运行数据，默认不进入 Git
+browser-extension/ 普通 Chrome 登录态的只读采集扩展
 ```
 
 ## 后端启动
@@ -75,12 +76,8 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api
 
 如果密码包含 `#`，需要写成 `%23`。
 
-Playwright 可以使用自带 Chromium，也可以使用本机 Chrome。当前推荐使用本机 Chrome：
-
-```text
-CHROME_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
-PLAYWRIGHT_BROWSER_CHANNEL=chrome
-```
+BOSS 页面采集使用项目自带的 Chrome 扩展，不再依赖 Playwright 控制登录页面。
+安装方式见 [browser-extension/README.md](browser-extension/README.md)。
 
 ## 数据库
 
@@ -106,6 +103,7 @@ python -m alembic -c alembic.ini upgrade head
 - Phase 7: 推荐牛人筛选和触达草稿
 - Phase 8: LangGraph 工作流和人审闭环
 - Phase 9: 稳定性、审计、安全和本地运行
+- Phase 10: 普通 Chrome 扩展桥接、真实页面采集和数据入库
 
 Phase 9 已交付：
 
@@ -124,13 +122,8 @@ Phase 9 已交付：
 .\scripts\stop.ps1
 ```
 
-首次登录或扫码页无法操作时：
-
-```powershell
-.\scripts\login-boss.ps1
-```
-
-完成扫码后关闭该 Chrome 窗口，再从控制台启动浏览器自动化。
+首次使用时在 `chrome://extensions` 加载项目的 `browser-extension` 文件夹，然后打开并登录
+BOSS 直聘。控制台“沟通采集”页面会显示扩展连接状态。
 
 开发测试：
 

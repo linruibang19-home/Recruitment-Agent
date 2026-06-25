@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>招聘 Agent 采集器</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="mark">招</span>
+        <div>
+          <strong>招聘 Agent 采集器</strong>
+          <small>只读模式</small>
+        </div>
+      </header>
+      <section>
+        <span id="dot" class="dot"></span>
+        <div>
+          <strong id="status">正在检测...</strong>
+          <p id="detail">请保持本地后端和 BOSS 页面打开。</p>
+        </div>
+      </section>
+      <button id="dashboard" type="button">打开招聘工作台</button>
+      <p class="safety">不会填写输入框或发送消息。</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -17,6 +17,7 @@
 - [11_talent_outreach.md](11_talent_outreach.md): 推荐牛人读取、筛选、去重、草稿和额度。
 - [12_langgraph_workflows.md](12_langgraph_workflows.md): LangGraph 状态机、checkpoint、人审恢复和运行查看器。
 - [13_operations_and_security.md](13_operations_and_security.md): 本地启停、测试、数据删除、脱敏和故障恢复。
+- [14_chrome_extension_bridge.md](14_chrome_extension_bridge.md): 普通 Chrome 扩展、任务桥接和真实数据入库。
 
 ## 执行原则
 
