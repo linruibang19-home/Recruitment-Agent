@@ -35,6 +35,7 @@ import {
   fetchDashboardData,
   generateRecommendations,
   openChat,
+  openBrowserLogin,
   scanChats,
   scanRecommendedTalents,
   startBrowser,
@@ -185,6 +186,7 @@ function browserStateLabel(status?: BrowserStatus | null): string {
 function auditActionLabel(actionType: string): string {
   const labels: Record<string, string> = {
     browser_start: "启动浏览器",
+    browser_login: "打开 BOSS 登录窗口",
     browser_stop: "停止浏览器",
     chat_scan: "扫描沟通列表",
     chat_open: "读取聊天详情",
@@ -520,11 +522,14 @@ export function App() {
   }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
-    async (action: "start" | "stop" | "scan", candidateName?: string) => {
+    async (action: "login" | "start" | "stop" | "scan", candidateName?: string) => {
       setAutomationBusy(candidateName ? `open:${candidateName}` : action);
       setAutomationNotice(null);
       try {
-        if (action === "start") {
+        if (action === "login") {
+          const status = await openBrowserLogin();
+          setAutomationNotice(status.detail ?? "普通 Chrome 登录窗口已打开");
+        } else if (action === "start") {
           const status = await startBrowser();
           setAutomationNotice(status.detail ?? "浏览器已启动");
         } else if (action === "stop") {
@@ -837,11 +842,15 @@ export function App() {
                   <button
                     className="secondary-button"
                     disabled={automationBusy !== null || data?.browser.running}
-                    onClick={() => void runAutomationAction("start")}
+                    onClick={() => void runAutomationAction(
+                      data?.browser.state === "login_required" ? "login" : "start"
+                    )}
                     type="button"
                   >
                     {data?.browser.state === "login_required" ? <LogIn size={16} /> : <Play size={16} />}
-                    <span>启动浏览器</span>
+                    <span>
+                      {data?.browser.state === "login_required" ? "打开登录窗口" : "启动浏览器"}
+                    </span>
                   </button>
                   <button
                     className="primary-button"

@@ -49,6 +49,22 @@ async def start_browser(db: Session = Depends(get_db)) -> BrowserStatus:
     return result
 
 
+@router.post("/automation/browser/login", response_model=BrowserStatus)
+async def open_browser_login(db: Session = Depends(get_db)) -> BrowserStatus:
+    try:
+        result = await browser_session_manager.open_login()
+    except BrowserSessionError as exc:
+        _record_failure(db, "browser_login", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    audit_repo.create_audit_log(
+        db,
+        action_type="browser_login",
+        status="ok",
+        detail=result.detail,
+    )
+    return result
+
+
 @router.post("/automation/browser/stop", response_model=BrowserStatus)
 async def stop_browser(db: Session = Depends(get_db)) -> BrowserStatus:
     result = await browser_session_manager.stop()

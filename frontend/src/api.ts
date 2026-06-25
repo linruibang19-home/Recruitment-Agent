@@ -85,6 +85,10 @@ export function startBrowser(): Promise<BrowserStatus> {
   return request<BrowserStatus>("/automation/browser/start", { method: "POST" });
 }
 
+export function openBrowserLogin(): Promise<BrowserStatus> {
+  return request<BrowserStatus>("/automation/browser/login", { method: "POST" });
+}
+
 export function stopBrowser(): Promise<BrowserStatus> {
   return request<BrowserStatus>("/automation/browser/stop", { method: "POST" });
 }

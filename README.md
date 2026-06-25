@@ -124,6 +124,14 @@ Phase 9 已交付：
 .\scripts\stop.ps1
 ```
 
+首次登录或扫码页无法操作时：
+
+```powershell
+.\scripts\login-boss.ps1
+```
+
+完成扫码后关闭该 Chrome 窗口，再从控制台启动浏览器自动化。
+
 开发测试：
 
 ```powershell

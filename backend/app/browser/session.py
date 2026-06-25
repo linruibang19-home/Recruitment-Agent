@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import TypeVar
 from uuid import uuid4
 
-from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
+from playwright.async_api import (
+    BrowserContext,
+    Error as PlaywrightError,
+    Page,
+    Playwright,
+    async_playwright,
+)
 
 from app.browser.extractor import click_chat_by_name, extract_chat_detail, extract_chat_summaries
 from app.browser.talent_extractor import extract_talent_cards
@@ -21,13 +27,15 @@ from app.schemas.talents import TalentCard
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_PROFILE_DIR = PROJECT_ROOT / "data" / "profiles" / "boss-chrome"
 DEFAULT_SCREENSHOT_DIR = PROJECT_ROOT / "data" / "screenshots"
+DEFAULT_CHROME_EXECUTABLE = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 BLOCKED_KEYWORDS = ("验证码", "安全验证", "账号异常", "访问受限", "操作频繁")
-LOGIN_KEYWORDS = ("登录", "扫码登录", "手机号登录")
+LOGIN_KEYWORDS = ("当前登录状态已失效", "扫码登录", "手机号登录", "请登录")
 
 
 @dataclass(frozen=True)
 class BrowserSessionConfig:
     base_url: str
+    login_url: str
     chat_url: str
     recommend_url: str
     user_data_dir: str
@@ -40,11 +48,15 @@ class BrowserSessionConfig:
 def get_browser_session_config() -> BrowserSessionConfig:
     return BrowserSessionConfig(
         base_url=settings.boss_base_url,
+        login_url="https://sao.zhipin.com/",
         chat_url=f"{settings.boss_base_url.rstrip('/')}/web/chat/index",
         recommend_url=f"{settings.boss_base_url.rstrip('/')}/web/chat/recommend",
         user_data_dir=settings.chrome_user_data_dir or str(DEFAULT_PROFILE_DIR),
         screenshot_dir=settings.screenshot_dir or str(DEFAULT_SCREENSHOT_DIR),
-        executable_path=settings.chrome_executable_path,
+        executable_path=(
+            settings.chrome_executable_path
+            or (str(DEFAULT_CHROME_EXECUTABLE) if DEFAULT_CHROME_EXECUTABLE.is_file() else "")
+        ),
         browser_channel=settings.playwright_browser_channel,
         headless=settings.browser_headless,
     )
@@ -66,6 +78,7 @@ class _BrowserWorker:
         self._playwright: Playwright | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
+        self._login_process: asyncio.subprocess.Process | None = None
         self._state = "stopped"
         self._detail: str | None = None
         self._consecutive_failures = 0
@@ -73,6 +86,13 @@ class _BrowserWorker:
 
     async def start(self) -> BrowserStatus:
         async with self._lock:
+            if self._login_process and self._login_process.returncode is None:
+                return BrowserStatus(
+                    state="login_required",
+                    running=False,
+                    detail="请先在普通 Chrome 中完成扫码并关闭登录窗口",
+                )
+            self._login_process = None
             if self._context and self._page and not self._page.is_closed():
                 return await self._inspect_page()
             if self._context or self._playwright:
@@ -88,6 +108,7 @@ class _BrowserWorker:
                     "headless": config.headless,
                     "viewport": {"width": 1440, "height": 960},
                     "locale": "zh-CN",
+                    "chromium_sandbox": True,
                 }
                 if config.executable_path:
                     launch_options["executable_path"] = config.executable_path
@@ -100,9 +121,35 @@ class _BrowserWorker:
                 self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
                 await self._page.goto(config.chat_url, wait_until="domcontentloaded", timeout=30_000)
                 await self._page.wait_for_timeout(1_000)
+                initial_status = await self._inspect_page()
+                if initial_status.state == "login_required":
+                    await self._context.clear_cookies()
+                    await self._close_resources()
+                    self._state = "login_required"
+                    self._detail = "登录状态无效，请打开普通登录窗口完成扫码"
+                    return BrowserStatus(
+                        state="login_required",
+                        running=False,
+                        detail=self._detail,
+                    )
+                    await self._page.wait_for_timeout(800)
                 await self._page.bring_to_front()
                 self._reset_operation_failures()
                 return await self._inspect_page()
+            except PlaywrightError as exc:
+                if type(exc).__name__ == "TargetClosedError":
+                    await self._close_resources()
+                    self._state = "login_required"
+                    self._detail = "普通 Chrome 正在使用登录 profile；完成扫码后请关闭该窗口"
+                    return BrowserStatus(
+                        state="login_required",
+                        running=False,
+                        detail=self._detail,
+                    )
+                self._state = "error"
+                self._detail = f"{type(exc).__name__}: {exc}"
+                await self._close_resources()
+                raise BrowserSessionError(self._detail) from exc
             except Exception as exc:
                 self._state = "error"
                 self._detail = f"{type(exc).__name__}: {exc}"
@@ -113,13 +160,41 @@ class _BrowserWorker:
         async with self._lock:
             if not self._context or not self._page or self._page.is_closed():
                 return BrowserStatus(
-                    state="stopped",
+                    state=self._state if self._state == "login_required" else "stopped",
                     running=False,
                     detail=self._detail,
                     consecutive_failures=self._consecutive_failures,
                     last_error=self._last_error,
                 )
             return await self._inspect_page()
+
+    async def open_login(self) -> BrowserStatus:
+        async with self._lock:
+            if self._context or self._playwright:
+                await self._close_resources()
+            if self._login_process and self._login_process.returncode is None:
+                return BrowserStatus(
+                    state="login_required",
+                    running=False,
+                    detail="普通 Chrome 登录窗口已打开，请完成扫码",
+                )
+            config = get_browser_session_config()
+            executable = config.executable_path
+            if not executable or not Path(executable).is_file():
+                raise BrowserSessionError("未找到可用于登录的本机 Chrome")
+            Path(config.user_data_dir).mkdir(parents=True, exist_ok=True)
+            self._login_process = await asyncio.create_subprocess_exec(
+                executable,
+                f"--user-data-dir={config.user_data_dir}",
+                config.login_url,
+            )
+            self._state = "login_required"
+            self._detail = "普通 Chrome 登录窗口已打开；扫码后请关闭窗口，再启动自动化"
+            return BrowserStatus(
+                state="login_required",
+                running=False,
+                detail=self._detail,
+            )
 
     async def scan_chats(self, limit: int, capture_screenshot: bool) -> ChatScanResult:
         async with self._lock:
@@ -225,9 +300,13 @@ class _BrowserWorker:
         elif any(keyword in body_text for keyword in BLOCKED_KEYWORDS):
             self._state = "blocked"
             self._detail = "检测到验证码、账号异常或访问限制，已禁止继续扫描"
-        elif "login" in url.lower() or any(keyword in body_text for keyword in LOGIN_KEYWORDS):
+        elif (
+            "sao.zhipin.com" in url.lower()
+            or "login" in url.lower()
+            or any(keyword in body_text for keyword in LOGIN_KEYWORDS)
+        ):
             self._state = "login_required"
-            self._detail = "请在浏览器窗口中手工完成 BOSS 直聘登录"
+            self._detail = "请在扫码登录页使用 BOSS 直聘 App 完成登录"
         else:
             self._state = "ready"
             self._detail = "浏览器会话可用，只读扫描已就绪"
@@ -280,6 +359,9 @@ class BrowserSessionManager:
 
     async def status(self) -> BrowserStatus:
         return await self._submit(lambda: self._get_worker().status())
+
+    async def open_login(self) -> BrowserStatus:
+        return await self._submit(lambda: self._get_worker().open_login())
 
     async def stop(self) -> BrowserStatus:
         return await self._submit(lambda: self._get_worker().stop())
