@@ -4,6 +4,7 @@ import type {
   AiHealth,
   Candidate,
   CandidateDeleteResult,
+  ChatLoopStatus,
   CandidateDetail,
   ExtensionCommand,
   ExtensionCommandType,
@@ -44,6 +45,7 @@ export type DashboardData = {
   actions: PageResponse<ActionQueueEntry>;
   greetingQuota: GreetingQuota;
   workflows: PageResponse<WorkflowRun>;
+  chatLoop: ChatLoopStatus;
 };
 
 export async function fetchDashboardData(): Promise<DashboardData> {
@@ -57,7 +59,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     recommendations,
     actions,
     greetingQuota,
-    workflows
+    workflows,
+    chatLoop
   ] = await Promise.all([
     request<{ status: string }>("/health/database"),
     request<AiHealth>("/health/ai"),
@@ -68,7 +71,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     request<Recommendation[]>("/recommendations/today"),
     request<PageResponse<ActionQueueEntry>>("/actions?limit=50"),
     request<GreetingQuota>("/quota/greetings"),
-    request<PageResponse<WorkflowRun>>("/workflows?limit=50")
+    request<PageResponse<WorkflowRun>>("/workflows?limit=50"),
+    request<ChatLoopStatus>("/automation/chat-loop/status")
   ]);
 
   return {
@@ -81,8 +85,36 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     recommendations,
     actions,
     greetingQuota,
-    workflows
+    workflows,
+    chatLoop
   };
+}
+
+export function fetchAuditLogs(
+  limit = 12,
+  offset = 0,
+  status?: string
+): Promise<PageResponse<AuditLog>> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset)
+  });
+  if (status && status !== "all") {
+    params.set("status", status);
+  }
+  return request<PageResponse<AuditLog>>(`/audit-logs?${params.toString()}`);
+}
+
+export function fetchAuditLog(auditLogId: number): Promise<AuditLog> {
+  return request<AuditLog>(`/audit-logs/${auditLogId}`);
+}
+
+export function startChatLoop(): Promise<ChatLoopStatus> {
+  return request<ChatLoopStatus>("/automation/chat-loop/start", { method: "POST" });
+}
+
+export function pauseChatLoop(): Promise<ChatLoopStatus> {
+  return request<ChatLoopStatus>("/automation/chat-loop/pause", { method: "POST" });
 }
 
 export function queueExtensionCommand(

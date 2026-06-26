@@ -48,8 +48,24 @@ def list_audit_logs(
     *,
     limit: int = 50,
     offset: int = 0,
+    status: str | None = None,
+    action_type: str | None = None,
 ) -> tuple[list[AuditLog], int]:
     stmt: Select[tuple[AuditLog]] = select(AuditLog)
-    total = db.scalar(select(func.count()).select_from(AuditLog)) or 0
+    filters = []
+    if status:
+        filters.append(AuditLog.status == status)
+    if action_type:
+        filters.append(AuditLog.action_type == action_type)
+    if filters:
+        stmt = stmt.where(*filters)
+    count_stmt = select(func.count()).select_from(AuditLog)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+    total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)))
     return items, total
+
+
+def get_audit_log(db: Session, audit_log_id: int) -> AuditLog | None:
+    return db.get(AuditLog, audit_log_id)

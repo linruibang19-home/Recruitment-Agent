@@ -153,11 +153,22 @@ export type ChatScanResult = {
 export type AuditLog = {
   id: number;
   action_type: string;
+  entity_type?: string | null;
+  entity_id?: number | null;
   status: string;
   detail?: string | null;
   screenshot_path?: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type ChatLoopStatus = {
+  running: boolean;
+  enabled: boolean;
+  next_enqueue_at?: string | null;
+  last_enqueue_at?: string | null;
+  last_command_id?: number | null;
+  last_message: string;
 };
 
 export type CandidateProfile = {

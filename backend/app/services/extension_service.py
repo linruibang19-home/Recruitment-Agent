@@ -18,7 +18,7 @@ from app.db.repositories import audit_logs as audit_repo
 from app.db.repositories import talents as talent_repo
 from app.schemas.extension import ExtensionHeartbeat
 from app.schemas.talents import TalentCard, TalentFilter
-from app.services.quota import greeting_quota_status
+from app.services.quota import get_or_create_greeting_quota, greeting_quota_status
 from app.services.talent_service import filter_talent_cards, greeting_message
 
 
@@ -396,6 +396,24 @@ def complete_command(
         candidate_id, attachment_urls, attachment_uploads = ingest_chat_result(
             db, {**result, "job_id": command.payload.get("job_id")}
         )
+        if command.command_type == "request_resumes_batch":
+            sent_count = max(0, int(result.get("sent_count") or 0))
+            if sent_count:
+                quota = get_or_create_greeting_quota(db)
+                quota.used_count = min(quota.max_count, quota.used_count + sent_count)
+                db.add(quota)
+                audit_repo.create_audit_log(
+                    db,
+                    action_type="extension_resume_request_quota",
+                    status="ok",
+                    detail=f"本批实际发送 {sent_count} 条索要简历话术",
+                    payload={
+                        "command_id": command.id,
+                        "sent_count": sent_count,
+                        "used_count": quota.used_count,
+                        "max_count": quota.max_count,
+                    },
+                )
     elif command.command_type == "scan_talents":
         result = {**result, **ingest_talent_result(db, result=result, command_payload=command.payload)}
     command.result = result

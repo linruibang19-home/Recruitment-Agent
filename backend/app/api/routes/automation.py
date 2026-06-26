@@ -12,6 +12,7 @@ from app.schemas.automation import (
     ChatScanResult,
 )
 from app.schemas.common import PageResponse
+from app.services.scheduler import chat_loop_status, pause_chat_loop, start_chat_loop
 
 router = APIRouter(tags=["automation"])
 
@@ -129,11 +130,42 @@ async def open_chat(payload: ChatOpenRequest, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
+@router.get("/automation/chat-loop/status")
+def get_chat_loop_status() -> dict:
+    return chat_loop_status()
+
+
+@router.post("/automation/chat-loop/start")
+def start_chat_resume_loop() -> dict:
+    return start_chat_loop()
+
+
+@router.post("/automation/chat-loop/pause")
+def pause_chat_resume_loop() -> dict:
+    return pause_chat_loop()
+
+
 @router.get("/audit-logs", response_model=PageResponse[AuditLogRead])
 def list_audit_logs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    status: str | None = Query(default=None, min_length=1, max_length=50),
+    action_type: str | None = Query(default=None, min_length=1, max_length=100),
     db: Session = Depends(get_db),
 ) -> PageResponse[AuditLogRead]:
-    items, total = audit_repo.list_audit_logs(db, limit=limit, offset=offset)
+    items, total = audit_repo.list_audit_logs(
+        db,
+        limit=limit,
+        offset=offset,
+        status=status,
+        action_type=action_type,
+    )
     return PageResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/audit-logs/{audit_log_id}", response_model=AuditLogRead)
+def get_audit_log(audit_log_id: int, db: Session = Depends(get_db)) -> AuditLogRead:
+    entry = audit_repo.get_audit_log(db, audit_log_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="审计日志不存在")
+    return entry

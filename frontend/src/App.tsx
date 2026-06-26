@@ -28,10 +28,14 @@ import {
   controlExtensionCommand,
   decideAction,
   deleteCandidate,
+  fetchAuditLog,
+  fetchAuditLogs,
   fetchCandidateDetail,
   fetchDashboardData,
   generateRecommendations,
+  pauseChatLoop,
   queueExtensionCommand,
+  startChatLoop,
   startWorkflow,
   retryWorkflow,
   reviewWorkflow,
@@ -42,11 +46,13 @@ import { candidates as fallbackCandidates, runEvents } from "./data";
 import { WorkflowView } from "./WorkflowView";
 import type {
   ActionQueueEntry,
+  AuditLog,
   Candidate,
   CandidateDetail,
   GreetingQuota,
   Job,
   Metric,
+  PageResponse,
   PipelineStage,
   Recommendation,
   TalentScanResult
@@ -106,6 +112,8 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
   settings: { title: "系统设置", description: "管理本地运行状态、采集策略、数据目录和数据库结构。" }
 };
+
+const AUDIT_PAGE_SIZE = 12;
 
 function candidateEducation(candidate: Candidate): string {
   const parts = [candidate.education_level, candidate.school].filter(Boolean);
@@ -193,7 +201,12 @@ function auditActionLabel(actionType: string): string {
     action_approved: "通过待确认动作",
     action_rejected: "拒绝待确认动作",
     talent_scan: "扫描推荐牛人",
-    candidate_deleted: "删除候选人数据"
+    candidate_deleted: "删除候选人数据",
+    extension_chat_ingest: "扩展写入聊天",
+    extension_talent_ingest: "扩展写入牛人",
+    extension_command: "扩展任务失败",
+    extension_resume_request_quota: "索要简历额度",
+    chat_resume_loop: "沟通自动循环"
   };
   return labels[actionType] ?? actionType;
 }
@@ -298,6 +311,13 @@ export function App() {
   const [talentResult, setTalentResult] = useState<TalentScanResult | null>(null);
   const [workflowBusy, setWorkflowBusy] = useState<string | null>(null);
   const [workflowNotice, setWorkflowNotice] = useState<string | null>(null);
+  const [chatLoopBusy, setChatLoopBusy] = useState<"start" | "pause" | null>(null);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditStatus, setAuditStatus] = useState("all");
+  const [auditLogs, setAuditLogs] = useState<PageResponse<AuditLog> | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditNotice, setAuditNotice] = useState<string | null>(null);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -314,6 +334,28 @@ export function App() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  const loadAuditLogs = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditNotice(null);
+    try {
+      const page = await fetchAuditLogs(AUDIT_PAGE_SIZE, auditPage * AUDIT_PAGE_SIZE, auditStatus);
+      setAuditLogs(page);
+      setSelectedAuditLog((current) => (
+        current && !page.items.some((item) => item.id === current.id) ? null : current
+      ));
+    } catch (err) {
+      setAuditNotice(err instanceof Error ? err.message : "无法读取审计日志");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [auditPage, auditStatus]);
+
+  useEffect(() => {
+    if (activeView === "audit") {
+      void loadAuditLogs();
+    }
+  }, [activeView, loadAuditLogs]);
 
   useEffect(() => {
     if (!selectedJobId && data?.jobs.items[0]) {
@@ -592,6 +634,33 @@ export function App() {
     },
     [activeExtensionCommand, loadDashboard]
   );
+
+  const controlChatLoop = useCallback(async (mode: "start" | "pause") => {
+    setChatLoopBusy(mode);
+    setAutomationNotice(null);
+    try {
+      await (mode === "start" ? startChatLoop() : pauseChatLoop());
+      await loadDashboard();
+      setAutomationNotice(
+        mode === "start"
+          ? "自动循环已启动：系统会按随机间隔创建每批最多 20 个未读会话的索要简历任务。"
+          : "自动循环已暂停：不会再创建新的批量索要任务。"
+      );
+    } catch (err) {
+      setAutomationNotice(err instanceof Error ? err.message : "自动循环控制失败");
+    } finally {
+      setChatLoopBusy(null);
+    }
+  }, [loadDashboard]);
+
+  const openAuditLog = useCallback(async (entry: AuditLog) => {
+    setAuditNotice(null);
+    try {
+      setSelectedAuditLog(await fetchAuditLog(entry.id));
+    } catch (err) {
+      setAuditNotice(err instanceof Error ? err.message : "无法读取日志详情");
+    }
+  }, []);
 
   const visibleCandidates = data?.candidates.items.length ? data.candidates.items : fallbackCandidates;
   const visibleJobs = data?.jobs.items ?? [];
@@ -940,6 +1009,54 @@ export function App() {
                 </div>
               </div>
               {automationNotice && <div className="automation-notice">{automationNotice}</div>}
+              <div className="loop-control-card">
+                <div>
+                  <span className={data?.chatLoop.running ? "status-pill active" : "status-pill"}>
+                    {data?.chatLoop.running ? "自动循环运行中" : "自动循环已暂停"}
+                  </span>
+                  <h3>未读新招呼循环索要简历</h3>
+                  <p>
+                    每批最多处理 20 个未读/红点会话，实际发送后计入每日 50 次额度；批次之间使用随机间隔。
+                  </p>
+                </div>
+                <dl className="loop-meta">
+                  <div>
+                    <dt>最近状态</dt>
+                    <dd>{data?.chatLoop.last_message ?? "未启动"}</dd>
+                  </div>
+                  <div>
+                    <dt>下一批</dt>
+                    <dd>
+                      {data?.chatLoop.next_enqueue_at
+                        ? new Date(data.chatLoop.next_enqueue_at).toLocaleString("zh-CN")
+                        : "未安排"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>最近任务</dt>
+                    <dd>{data?.chatLoop.last_command_id ? `#${data.chatLoop.last_command_id}` : "暂无"}</dd>
+                  </div>
+                </dl>
+                <div className="loop-actions">
+                  <button
+                    className="primary-button"
+                    disabled={chatLoopBusy !== null || !data?.extension.connected}
+                    onClick={() => void controlChatLoop("start")}
+                    type="button"
+                  >
+                    <Bot size={16} />
+                    <span>{chatLoopBusy === "start" ? "启动中" : "启动循环"}</span>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={chatLoopBusy !== null || !data?.chatLoop.running}
+                    onClick={() => void controlChatLoop("pause")}
+                    type="button"
+                  >
+                    <span>{chatLoopBusy === "pause" ? "暂停中" : "暂停循环"}</span>
+                  </button>
+                </div>
+              </div>
               <div className="safety-strip">
                 <ShieldCheck size={18} />
                 <span>受控写入：批量索要简历仅发送固定话术，不发送自由文本；其它回复和约面仍进入人工确认。</span>
@@ -1002,29 +1119,136 @@ export function App() {
 
         {activeView === "audit" && (
           <section className="single-view">
-            <article className="panel full">
+            <article className="panel full audit-panel">
               <div className="panel-header">
                 <div>
                   <h2>审计日志</h2>
-                  <p>浏览器启动、停止、扫描和聊天读取均写入 PostgreSQL。</p>
+                  <p>浏览器、扩展、简历解析、每日推荐和循环调度都会写入 PostgreSQL。</p>
                 </div>
-                <ClipboardList size={20} />
+                <div className="audit-tools">
+                  <select
+                    aria-label="日志状态筛选"
+                    value={auditStatus}
+                    onChange={(event) => {
+                      setAuditStatus(event.target.value);
+                      setAuditPage(0);
+                      setSelectedAuditLog(null);
+                    }}
+                  >
+                    <option value="all">全部状态</option>
+                    <option value="ok">成功</option>
+                    <option value="failed">失败</option>
+                  </select>
+                  <button
+                    className="secondary-button"
+                    disabled={auditLoading}
+                    onClick={() => void loadAuditLogs()}
+                    type="button"
+                  >
+                    <RefreshCw size={16} />
+                    <span>刷新</span>
+                  </button>
+                </div>
               </div>
-              {data?.auditLogs.items.length ? (
-                <div className="audit-list">
-                  {data.auditLogs.items.map((entry) => (
-                    <div className="audit-row" key={entry.id}>
-                      <span className={`audit-status ${entry.status}`} />
-                      <div>
-                        <strong>{auditActionLabel(entry.action_type)}</strong>
-                        <small>{entry.detail ?? "无附加说明"}</small>
-                      </div>
-                      <time>{new Date(entry.created_at).toLocaleString("zh-CN")}</time>
+              {auditNotice && <div className="automation-notice">{auditNotice}</div>}
+              {(auditLogs?.items.length ?? data?.auditLogs.items.length) ? (
+                <div className="audit-layout">
+                  <div>
+                    <div className="audit-summary">
+                      <strong>共 {auditLogs?.total ?? data?.auditLogs.total ?? 0} 条</strong>
+                      <span>第 {auditPage + 1} 页，每页 {AUDIT_PAGE_SIZE} 条</span>
                     </div>
-                  ))}
+                    <div className="audit-list paged">
+                      {(auditLogs?.items ?? data?.auditLogs.items ?? []).map((entry) => (
+                        <button
+                          className={selectedAuditLog?.id === entry.id ? "audit-row selected" : "audit-row"}
+                          key={entry.id}
+                          onClick={() => void openAuditLog(entry)}
+                          type="button"
+                        >
+                          <span className={`audit-status ${entry.status}`} />
+                          <div>
+                            <strong>{auditActionLabel(entry.action_type)}</strong>
+                            <small>{entry.detail ?? "无附加说明"}</small>
+                          </div>
+                          <time>{new Date(entry.created_at).toLocaleString("zh-CN")}</time>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pagination-bar">
+                      <button
+                        className="secondary-button"
+                        disabled={auditPage === 0 || auditLoading}
+                        onClick={() => setAuditPage((page) => Math.max(0, page - 1))}
+                        type="button"
+                      >
+                        上一页
+                      </button>
+                      <span>
+                        {Math.min(
+                          (auditPage + 1) * AUDIT_PAGE_SIZE,
+                          auditLogs?.total ?? data?.auditLogs.total ?? 0
+                        )}{" "}
+                        / {auditLogs?.total ?? data?.auditLogs.total ?? 0}
+                      </span>
+                      <button
+                        className="secondary-button"
+                        disabled={
+                          auditLoading ||
+                          (auditPage + 1) * AUDIT_PAGE_SIZE >= (auditLogs?.total ?? data?.auditLogs.total ?? 0)
+                        }
+                        onClick={() => setAuditPage((page) => page + 1)}
+                        type="button"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                  <aside className="audit-detail-panel">
+                    {selectedAuditLog ? (
+                      <>
+                        <div className="audit-detail-header">
+                          <div>
+                            <span className={`status-pill ${selectedAuditLog.status === "ok" ? "active" : "danger"}`}>
+                              {selectedAuditLog.status === "ok" ? "成功" : selectedAuditLog.status}
+                            </span>
+                            <h3>#{selectedAuditLog.id} {auditActionLabel(selectedAuditLog.action_type)}</h3>
+                          </div>
+                          <time>{new Date(selectedAuditLog.created_at).toLocaleString("zh-CN")}</time>
+                        </div>
+                        <dl className="audit-detail-list">
+                          <div>
+                            <dt>动作类型</dt>
+                            <dd>{selectedAuditLog.action_type}</dd>
+                          </div>
+                          <div>
+                            <dt>关联实体</dt>
+                            <dd>
+                              {selectedAuditLog.entity_type
+                                ? `${selectedAuditLog.entity_type} #${selectedAuditLog.entity_id ?? "-"}`
+                                : "无"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>截图路径</dt>
+                            <dd>{selectedAuditLog.screenshot_path ?? "无"}</dd>
+                          </div>
+                          <div>
+                            <dt>说明</dt>
+                            <dd>{selectedAuditLog.detail ?? "无附加说明"}</dd>
+                          </div>
+                        </dl>
+                        <pre className="payload-view">
+                          {JSON.stringify(selectedAuditLog.payload ?? {}, null, 2)}
+                        </pre>
+                      </>
+                    ) : (
+                      <div className="empty-state compact">点击左侧任意日志查看 payload、截图路径和关联实体。</div>
+                    )}
+                  </aside>
                 </div>
               ) : (
-                <div className="empty-state">暂无自动化审计事件。</div>
+                <div className="empty-state">{auditLoading ? "正在读取审计日志..." : "暂无自动化审计事件。"}</div>
               )}
             </article>
           </section>

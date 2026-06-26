@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     recommendation_hour: int = 9
     max_daily_greetings: int = 50
     max_hourly_greetings: int = 10
+    chat_loop_batch_limit: int = 20
+    chat_loop_min_gap_minutes: int = 8
+    chat_loop_max_gap_minutes: int = 18
+    chat_loop_min_delay_ms: int = 1200
+    chat_loop_max_delay_ms: int = 2600
     stop_after_automation_failures: int = 3
     cors_origins: list[str] = ["http://127.0.0.1:5173", "http://localhost:5173"]
 
