@@ -1107,6 +1107,34 @@ export function App() {
             <article className="settings-section full">
               <div className="settings-heading">
                 <div>
+                  <h2>AI 能力</h2>
+                  <p>简历解析会优先使用 PDF 原生文本，必要时走 OCR，并可用 LLM 增强画像。</p>
+                </div>
+                <Activity size={19} />
+              </div>
+              <dl className="settings-list horizontal">
+                <div>
+                  <dt>OCR</dt>
+                  <dd className={data?.aiHealth.ocr.available ? "value-ok" : "value-error"}>
+                    {data?.aiHealth.ocr.available ? "Tesseract 可用" : "未检测到"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>OCR 语言</dt>
+                  <dd>{data?.aiHealth.ocr.languages ?? "chi_sim+eng"}</dd>
+                </div>
+                <div>
+                  <dt>LLM</dt>
+                  <dd className={data?.aiHealth.llm.enabled && data.aiHealth.llm.configured ? "value-ok" : "value-error"}>
+                    {data?.aiHealth.llm.enabled && data.aiHealth.llm.configured ? data.aiHealth.llm.model : "未启用"}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+
+            <article className="settings-section full">
+              <div className="settings-heading">
+                <div>
                   <h2>本地数据</h2>
                   <p>业务数据进入 PostgreSQL，简历和临时文件保存在本地运行目录。</p>
                 </div>

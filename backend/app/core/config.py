@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     max_resume_size_mb: int = 10
     llm_enabled: bool = False
     llm_provider: str = "deepseek"
-    llm_model: str = "deepseek-chat"
+    llm_model: str = "deepseek-v4-flash"
     llm_base_url: str = "https://api.deepseek.com"
     deepseek_api_key: str = ""
     recommendation_top_n: int = 5

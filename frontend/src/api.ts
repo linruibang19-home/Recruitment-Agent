@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   ActionQueueEntry,
+  AiHealth,
   Candidate,
   CandidateDeleteResult,
   CandidateDetail,
@@ -34,6 +35,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type DashboardData = {
   databaseStatus: string;
+  aiHealth: AiHealth;
   jobs: PageResponse<Job>;
   candidates: PageResponse<Candidate>;
   extension: ExtensionStatus;
@@ -47,6 +49,7 @@ export type DashboardData = {
 export async function fetchDashboardData(): Promise<DashboardData> {
   const [
     databaseHealth,
+    aiHealth,
     jobs,
     candidates,
     extension,
@@ -57,6 +60,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     workflows
   ] = await Promise.all([
     request<{ status: string }>("/health/database"),
+    request<AiHealth>("/health/ai"),
     request<PageResponse<Job>>("/jobs?limit=20"),
     request<PageResponse<Candidate>>("/candidates?limit=20"),
     request<ExtensionStatus>("/extension/status"),
@@ -69,6 +73,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
   return {
     databaseStatus: databaseHealth.status,
+    aiHealth,
     jobs,
     candidates,
     extension,

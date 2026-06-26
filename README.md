@@ -17,6 +17,7 @@
 - [风控策略](docs/execution/05_risk_control.md)
 - [Git 工作流](docs/execution/06_git_workflow.md)
 - [数据库初始化](docs/execution/08_database_setup.md)
+- [AI / OCR / LLM 配置](docs/execution/15_ai_ocr_llm.md)
 
 ## 项目结构
 
@@ -43,6 +44,7 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```text
 http://127.0.0.1:8000/api/health
 http://127.0.0.1:8000/api/health/database
+http://127.0.0.1:8000/api/health/ai
 ```
 
 ## 前端启动

@@ -26,6 +26,15 @@
 - `npm run build`: 通过。
 - `python -m alembic -c alembic.ini upgrade head`: 已升级到 `20260627_0004`。
 
+### AI / OCR 补充验收
+
+- 新增 `/api/health/ai`，可查看本机 OCR 和 LLM 配置状态，不返回 API key 内容。
+- OCR 使用本地 Tesseract，默认语言为 `chi_sim+eng`，扫描型 PDF 会走 OCR 兜底。
+- DeepSeek LLM 已改用 `deepseek-v4-flash`，默认 Base URL 为 `https://api.deepseek.com`。
+- 本地实测 DeepSeek 调用成功，简历画像增强返回 `parser=deepseek`。
+- 本地实测图片型 PDF 触发 OCR，返回 `ocr_used=true` 并提取到文本。
+- 前端系统设置新增 AI 能力状态卡，展示 OCR 可用性、OCR 语言和 LLM 模型状态。
+
 ## Phase 1 Status
 
 状态：完成基础骨架实现，等待 Phase 2 PostgreSQL 数据层。

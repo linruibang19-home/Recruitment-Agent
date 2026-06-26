@@ -53,6 +53,24 @@ export type PageResponse<T> = {
   offset: number;
 };
 
+export type AiHealth = {
+  status: string;
+  ocr: {
+    provider: string;
+    available: boolean;
+    executable?: string | null;
+    tessdata_dir?: string | null;
+    languages: string;
+  };
+  llm: {
+    provider: string;
+    enabled: boolean;
+    configured: boolean;
+    model: string;
+    base_url: string;
+  };
+};
+
 export type BrowserState = "stopped" | "starting" | "ready" | "login_required" | "blocked" | "error";
 
 export type BrowserStatus = {
