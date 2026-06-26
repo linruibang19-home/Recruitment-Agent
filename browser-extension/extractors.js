@@ -47,8 +47,54 @@
     return [];
   }
 
+  function visibleRect(element) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
+    const style = window.getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+      return null;
+    }
+    return rect;
+  }
+
+  function isNestedDuplicate(element, elements) {
+    return elements.some((other) => {
+      if (other === element || !other.contains(element)) return false;
+      const outer = visibleRect(other);
+      const inner = visibleRect(element);
+      if (!outer || !inner) return false;
+      return Math.abs(outer.width - inner.width) < 12 && Math.abs(outer.height - inner.height) < 12;
+    });
+  }
+
+  function fallbackChatItems() {
+    const all = Array.from(document.querySelectorAll("li, div, a, button"));
+    const candidates = all.filter((element) => {
+      const rect = visibleRect(element);
+      if (!rect) return false;
+      const text = normalizeText(element.textContent);
+      if (text.length < 8 || text.length > 220) return false;
+      if (/(全部职位|全部 未读|未选中联系人|暂无牛人|在线简历|附件简历|招聘规范)/.test(text)) {
+        return false;
+      }
+      const inLeftPane = rect.left > 180
+        && rect.left < window.innerWidth * 0.52
+        && rect.top > 140
+        && rect.width >= 220
+        && rect.width <= 560
+        && rect.height >= 48
+        && rect.height <= 140;
+      if (!inLeftPane) return false;
+      return /(\d{2}:\d{2}|昨天|前天|Agent|实习生|求职者|您好|Boss)/.test(text);
+    });
+    return candidates
+      .filter((element) => !isNestedDuplicate(element, candidates))
+      .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top);
+  }
+
   function chatItems() {
-    return firstMatchingElements(CHAT_ITEM_SELECTORS);
+    const matched = firstMatchingElements(CHAT_ITEM_SELECTORS);
+    return matched.length ? matched : fallbackChatItems();
   }
 
   function childText(element, selectors) {
@@ -110,9 +156,15 @@
       const rawText = normalizeText(item.textContent);
       if (!rawText) return [];
       const unreadText = childText(item, [".badge", ".unread", "[class*='unread']"]) || "";
+      const compactText = rawText.replace(/\d{2}:\d{2}.*/, "").trim();
+      const fallbackName = compactText
+        .replace(/Agent应用开发实习生.*/, "")
+        .replace(/您好.*/, "")
+        .trim()
+        .split(" ")[0];
       return [{
         index,
-        name: childText(item, [".name", ".user-name", ".friend-name", "[class*='name']"]) || rawText.split(" ")[0],
+        name: childText(item, [".name", ".user-name", ".friend-name", "[class*='name']"]) || fallbackName || rawText.split(" ")[0],
         preview: childText(item, [".last-msg", ".preview", ".message-text", "[class*='last']"]),
         unread_count: Number((unreadText.match(/\d+/) || ["0"])[0]),
         href: absoluteHref(item),
@@ -139,8 +191,23 @@
       candidateName = normalizeText(document.querySelector(selector)?.textContent) || null;
       if (candidateName) break;
     }
+    const messageElements = firstMatchingElements(MESSAGE_SELECTORS);
+    const fallbackMessages = messageElements.length ? [] : Array.from(document.querySelectorAll("div, p, span")).filter((element) => {
+      const rect = visibleRect(element);
+      if (!rect) return false;
+      const content = normalizeText(element.textContent);
+      if (content.length < 2 || content.length > 500) return false;
+      if (/(在线简历|附件简历|求简历|换电话|换微信|约面试|不合适|招聘规范|我的客服)/.test(content)) {
+        return false;
+      }
+      return rect.left > window.innerWidth * 0.42
+        && rect.top > 280
+        && rect.bottom < window.innerHeight - 90
+        && rect.width > 40
+        && rect.height > 16;
+    });
     const seenMessages = new Set();
-    const messages = firstMatchingElements(MESSAGE_SELECTORS).slice(0, 200).flatMap((element) => {
+    const messages = (messageElements.length ? messageElements : fallbackMessages).slice(0, 200).flatMap((element) => {
       const content = normalizeText(element.textContent);
       if (!content || seenMessages.has(content)) return [];
       seenMessages.add(content);

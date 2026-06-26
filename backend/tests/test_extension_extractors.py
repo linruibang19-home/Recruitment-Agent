@@ -76,6 +76,53 @@ def test_clicks_chat_item_by_index() -> None:
         playwright.stop()
 
 
+def test_fallback_extracts_visible_boss_chat_cards() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1940, "height": 1080})
+        page.set_content(
+            """
+            <main>
+              <section style="position:absolute; left:420px; top:185px; width:430px;">
+                <div style="height:86px; width:410px;" onclick="window.clicked='first'">
+                  <strong>何瑞</strong>
+                  <span>Agent应用开发实习生</span>
+                  <small>23:09</small>
+                  <p>您好，我是华南理工大学电子信息...</p>
+                </div>
+                <div style="height:86px; width:410px;" onclick="window.clicked='second'">
+                  <strong>朱福培</strong>
+                  <span>Agent应用开发实习生</span>
+                  <small>21:26</small>
+                  <p>您好，我是大模型应用开发岗位的求职者...</p>
+                </div>
+              </section>
+              <section style="position:absolute; left:900px; top:280px; width:900px;">
+                <div style="margin-top:260px; width:620px;">
+                  您好，我是大模型应用开发岗位的求职者，基于langchain框架设计搭建RAG知识库。
+                </div>
+              </section>
+            </main>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate(
+            """() => {
+              const summaries = RecruitmentExtractors.extractChatSummaries(10);
+              const clicked = RecruitmentExtractors.clickChatByIndex(1);
+              const detail = RecruitmentExtractors.extractChatDetail();
+              return { summaries, clicked, clickedValue: window.clicked, detail };
+            }"""
+        )
+        assert [item["name"] for item in result["summaries"]] == ["何瑞", "朱福培"]
+        assert result["clicked"] is True
+        assert result["clickedValue"] == "second"
+        assert "langchain" in result["detail"]["messages"][0]["content"]
+    finally:
+        browser.close()
+        playwright.stop()
+
+
 def test_extracts_talent_card_fields() -> None:
     playwright, browser, page = _page()
     try:

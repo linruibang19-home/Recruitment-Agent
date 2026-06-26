@@ -224,6 +224,21 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
         db.commit()
         return None, [], []
 
+    if not (
+        detail.get("candidate_name")
+        or detail.get("name")
+        or detail.get("messages")
+        or detail.get("attachments")
+    ):
+        audit_repo.create_audit_log(
+            db,
+            action_type="extension_chat_ingest",
+            status="failed",
+            detail="扩展未在当前 BOSS 沟通页识别到会话或聊天详情",
+            payload={"page_url": result.get("page_url")},
+        )
+        return None, [], []
+
     candidate = _upsert_chat_candidate(db, detail)
     message_count = _save_messages(db, candidate, detail.get("messages") or [])
     attachments = detail.get("attachments") or []
