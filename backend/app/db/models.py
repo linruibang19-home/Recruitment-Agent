@@ -332,7 +332,7 @@ class ExtensionCommand(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "command_type in ('scan_chats','scan_chat_details','read_current_chat','scan_talents')",
+            "command_type in ('scan_chats','scan_chat_details','request_resumes_batch','read_current_chat','scan_talents')",
             name="extension_commands_type_check",
         ),
         CheckConstraint(

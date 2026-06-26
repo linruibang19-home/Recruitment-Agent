@@ -25,6 +25,7 @@ import {
   Workflow
 } from "lucide-react";
 import {
+  controlExtensionCommand,
   decideAction,
   deleteCandidate,
   fetchCandidateDetail,
@@ -496,7 +497,14 @@ export function App() {
   }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
-    async (action: "refresh" | "scan_chats" | "scan_chat_details" | "read_current_chat") => {
+    async (
+      action:
+        | "refresh"
+        | "scan_chats"
+        | "scan_chat_details"
+        | "request_resumes_batch"
+        | "read_current_chat"
+    ) => {
       setAutomationBusy(action);
       setAutomationNotice(null);
       try {
@@ -504,7 +512,17 @@ export function App() {
           await loadDashboard();
           setAutomationNotice("已重新检测扩展连接状态。");
         } else {
-          const command = await queueExtensionCommand(action, { limit: 30, delay_ms: 1400 });
+          const command = await queueExtensionCommand(
+            action,
+            action === "request_resumes_batch"
+              ? {
+                  limit: 20,
+                  delay_ms: 1800,
+                  only_unread: true,
+                  message: "方便发一份你的简历过来吗？"
+                }
+              : { limit: 30, delay_ms: 1400 }
+          );
           setAutomationNotice(
             action === "scan_chats"
               ? `沟通列表扫描任务 #${command.id} 已提交。`
@@ -521,6 +539,38 @@ export function App() {
       }
     },
     [loadDashboard]
+  );
+
+  const activeExtensionCommand = useMemo(
+    () => data?.extension.recent_commands.find((command) => ["queued", "running"].includes(command.status)) ?? null,
+    [data?.extension.recent_commands]
+  );
+
+  const controlAutomationCommand = useCallback(
+    async (control: "running" | "paused" | "stopped") => {
+      if (!activeExtensionCommand) {
+        setAutomationNotice("当前没有可控制的扩展任务。");
+        return;
+      }
+      setAutomationBusy(`control:${control}`);
+      setAutomationNotice(null);
+      try {
+        await controlExtensionCommand(activeExtensionCommand.id, control);
+        await loadDashboard();
+        setAutomationNotice(
+          control === "paused"
+            ? `任务 #${activeExtensionCommand.id} 已暂停。`
+            : control === "stopped"
+              ? `任务 #${activeExtensionCommand.id} 已停止。`
+              : `任务 #${activeExtensionCommand.id} 已继续。`
+        );
+      } catch (err) {
+        setAutomationNotice(err instanceof Error ? err.message : "任务控制失败");
+      } finally {
+        setAutomationBusy(null);
+      }
+    },
+    [activeExtensionCommand, loadDashboard]
   );
 
   const visibleCandidates = data?.candidates.items.length ? data.candidates.items : fallbackCandidates;
@@ -835,6 +885,15 @@ export function App() {
                     <span>{automationBusy === "scan_chat_details" ? "提交中" : "批量读取聊天"}</span>
                   </button>
                   <button
+                    className="primary-button"
+                    disabled={automationBusy !== null || !data?.extension.connected}
+                    onClick={() => void runAutomationAction("request_resumes_batch")}
+                    type="button"
+                  >
+                    <FileText size={16} />
+                    <span>{automationBusy === "request_resumes_batch" ? "提交中" : "批量索要简历"}</span>
+                  </button>
+                  <button
                     className="secondary-button"
                     disabled={automationBusy !== null || !data?.extension.connected}
                     onClick={() => void runAutomationAction("read_current_chat")}
@@ -843,12 +902,36 @@ export function App() {
                     <Eye size={16} />
                     <span>{automationBusy === "read_current_chat" ? "提交中" : "读取当前聊天"}</span>
                   </button>
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || !activeExtensionCommand}
+                    onClick={() => void controlAutomationCommand("paused")}
+                    type="button"
+                  >
+                    <span>暂停</span>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || !activeExtensionCommand}
+                    onClick={() => void controlAutomationCommand("running")}
+                    type="button"
+                  >
+                    <span>继续</span>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || !activeExtensionCommand}
+                    onClick={() => void controlAutomationCommand("stopped")}
+                    type="button"
+                  >
+                    <span>停止</span>
+                  </button>
                 </div>
               </div>
               {automationNotice && <div className="automation-notice">{automationNotice}</div>}
               <div className="safety-strip">
                 <ShieldCheck size={18} />
-                <span>只读模式：只读取当前页面和附件直链，不填写输入框、不点击发送；所有回复仅生成待确认草稿。</span>
+                <span>受控写入：批量索要简历仅发送固定话术，不发送自由文本；其它回复和约面仍进入人工确认。</span>
               </div>
             </article>
             <article className="panel full">
@@ -871,6 +954,8 @@ export function App() {
                             ? "扫描沟通列表"
                             : command.command_type === "scan_chat_details"
                               ? "批量读取聊天"
+                            : command.command_type === "request_resumes_batch"
+                              ? "批量索要简历"
                             : command.command_type === "read_current_chat"
                               ? "读取当前聊天"
                               : "扫描推荐牛人"}

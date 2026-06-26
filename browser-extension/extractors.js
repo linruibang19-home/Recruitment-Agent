@@ -156,6 +156,16 @@
       const rawText = normalizeText(item.textContent);
       if (!rawText) return [];
       const unreadText = childText(item, [".badge", ".unread", "[class*='unread']"]) || "";
+      const hasUnreadMarker = Boolean(item.querySelector(".badge, .unread, [class*='unread']"))
+        || /(^|\D)[1-9]\d?($|\D)/.test(unreadText)
+        || Array.from(item.querySelectorAll("*")).some((child) => {
+          const rect = visibleRect(child);
+          if (!rect || rect.width > 32 || rect.height > 32) return false;
+          const style = window.getComputedStyle(child);
+          const color = `${style.backgroundColor} ${style.color} ${style.borderColor}`;
+          return /(rgb\(255,\s*|rgb\(244,\s*|#f|red)/i.test(color)
+            && /[1-9]\d?/.test(normalizeText(child.textContent));
+        });
       const compactText = rawText.replace(/\d{2}:\d{2}.*/, "").trim();
       const fallbackName = compactText
         .replace(/Agent应用开发实习生.*/, "")
@@ -167,6 +177,7 @@
         name: childText(item, [".name", ".user-name", ".friend-name", "[class*='name']"]) || fallbackName || rawText.split(" ")[0],
         preview: childText(item, [".last-msg", ".preview", ".message-text", "[class*='last']"]),
         unread_count: Number((unreadText.match(/\d+/) || ["0"])[0]),
+        has_unread: hasUnreadMarker,
         href: absoluteHref(item),
         raw_text: rawText
       }];
@@ -248,6 +259,75 @@
     return true;
   }
 
+  function findVisibleByText(selectors, patterns) {
+    const elements = Array.from(document.querySelectorAll(selectors.join(",")));
+    return elements.find((element) => {
+      if (!visibleRect(element)) return false;
+      const text = normalizeText(element.textContent || element.getAttribute("aria-label"));
+      return patterns.some((pattern) => pattern.test(text));
+    }) || null;
+  }
+
+  function findComposer() {
+    const candidates = Array.from(document.querySelectorAll("textarea, input[type='text'], [contenteditable='true']"));
+    return candidates.find((element) => {
+      const rect = visibleRect(element);
+      if (!rect) return false;
+      return rect.top > window.innerHeight * 0.62
+        && rect.left > window.innerWidth * 0.34
+        && rect.width > 120
+        && rect.height > 14;
+    }) || null;
+  }
+
+  function setComposerText(element, message) {
+    element.focus();
+    if ("value" in element) {
+      element.value = message;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+    element.textContent = message;
+    element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: message }));
+    return true;
+  }
+
+  function clickSendButton() {
+    const button = findVisibleByText(["button", "span", "div"], [/^发送$/, /^鍙戦€?$/]);
+    if (!button) return false;
+    const disabled = button.matches?.(":disabled")
+      || button.getAttribute("aria-disabled") === "true"
+      || /disabled|forbid/.test(String(button.className || ""));
+    if (disabled) return false;
+    button.click();
+    return true;
+  }
+
+  async function sendResumeRequest(message) {
+    const quickResumeButton = findVisibleByText(["button", "span", "div"], [/^求简历$/, /^姹傜畝鍘?$/]);
+    if (quickResumeButton) {
+      quickResumeButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const phrase = findVisibleByText(["li", "button", "span", "div", "p"], [
+        /方便发一份你的简历过来吗/,
+        /鏂逛究鍙戦€佷竴浠?.*绠€鍘?/
+      ]);
+      if (phrase) {
+        phrase.click();
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        if (clickSendButton()) return { sent: true, method: "common_phrase" };
+      }
+    }
+
+    const composer = findComposer();
+    if (!composer) return { sent: false, method: "none", error: "未找到聊天输入框" };
+    setComposerText(composer, message);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!clickSendButton()) return { sent: false, method: "composer", error: "未找到可点击的发送按钮" };
+    return { sent: true, method: "composer" };
+  }
+
   function extractTalentCards(limit = 30) {
     return firstMatchingElements(TALENT_CARD_SELECTORS).slice(0, limit).flatMap((card) => {
       const rawText = normalizeText(card.textContent);
@@ -282,6 +362,7 @@
     extractChatSummaries,
     extractChatDetail,
     clickChatByIndex,
+    sendResumeRequest,
     extractTalentCards
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -64,11 +64,44 @@ def is_connected(session: ExtensionSession | None) -> bool:
 def create_command(
     db: Session, *, command_type: str, payload: dict[str, Any]
 ) -> ExtensionCommand:
+    if command_type == "request_resumes_batch":
+        safe_payload = {
+            **payload,
+            "limit": min(int(payload.get("limit") or 20), 20),
+            "message": str(payload.get("message") or "方便发一份你的简历过来吗？"),
+            "only_unread": True,
+            "read_only": False,
+            "auto_send": True,
+            "control": "running",
+        }
+    else:
+        safe_payload = {**payload, "read_only": True, "auto_send": False, "control": "running"}
     command = ExtensionCommand(
         command_type=command_type,
         status="queued",
-        payload={**payload, "read_only": True, "auto_send": False},
+        payload=safe_payload,
     )
+    db.add(command)
+    db.commit()
+    db.refresh(command)
+    return command
+
+
+def command_control(db: Session, command_id: int) -> str:
+    command = db.get(ExtensionCommand, command_id)
+    if command is None:
+        return "stopped"
+    control = (command.payload or {}).get("control")
+    return control if control in {"running", "paused", "stopped"} else "running"
+
+
+def update_command_control(db: Session, command_id: int, control: str) -> ExtensionCommand:
+    command = db.get(ExtensionCommand, command_id)
+    if command is None:
+        raise ValueError("extension command not found")
+    if command.status not in {"queued", "running"}:
+        raise ValueError(f"cannot control command in status {command.status}")
+    command.payload = {**(command.payload or {}), "control": control}
     db.add(command)
     db.commit()
     db.refresh(command)
@@ -273,7 +306,8 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
             )
     else:
         candidate.status = "resume_requested"
-        _ensure_resume_draft(db, candidate)
+        if not detail.get("resume_request_sent"):
+            _ensure_resume_draft(db, candidate)
     db.commit()
     audit_repo.create_audit_log(
         db,
@@ -346,7 +380,12 @@ def complete_command(
     candidate_id = None
     attachment_urls: list[str] = []
     attachment_uploads: list[dict[str, Any]] = []
-    if command.command_type in {"scan_chats", "scan_chat_details", "read_current_chat"}:
+    if command.command_type in {
+        "scan_chats",
+        "scan_chat_details",
+        "request_resumes_batch",
+        "read_current_chat",
+    }:
         candidate_id, attachment_urls, attachment_uploads = ingest_chat_result(
             db, {**result, "job_id": command.payload.get("job_id")}
         )

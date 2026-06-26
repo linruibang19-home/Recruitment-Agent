@@ -90,6 +90,16 @@ export function queueExtensionCommand(
   });
 }
 
+export function controlExtensionCommand(
+  commandId: number,
+  control: "running" | "paused" | "stopped"
+): Promise<ExtensionCommand> {
+  return request<ExtensionCommand>(`/extension/commands/${commandId}/control`, {
+    method: "POST",
+    body: JSON.stringify({ control })
+  });
+}
+
 export function fetchCandidateDetail(candidateId: number): Promise<CandidateDetail> {
   return request<CandidateDetail>(`/candidates/${candidateId}/detail`);
 }

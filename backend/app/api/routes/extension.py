@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.db.models import ExtensionCommand
 from app.db.session import get_db
 from app.schemas.extension import (
+    ExtensionCommandControl,
+    ExtensionCommandControlRead,
     ExtensionCommandCreate,
     ExtensionCommandFailure,
     ExtensionCommandRead,
@@ -65,6 +67,26 @@ def next_command(
     db: Session = Depends(get_db),
 ) -> ExtensionCommand | None:
     return extension_service.claim_next_command(db, extension_id)
+
+
+@router.get("/commands/{command_id}/control", response_model=ExtensionCommandControlRead)
+def command_control(command_id: int, db: Session = Depends(get_db)) -> ExtensionCommandControlRead:
+    return ExtensionCommandControlRead(
+        command_id=command_id,
+        control=extension_service.command_control(db, command_id),
+    )
+
+
+@router.post("/commands/{command_id}/control", response_model=ExtensionCommandRead)
+def update_command_control(
+    command_id: int,
+    payload: ExtensionCommandControl,
+    db: Session = Depends(get_db),
+) -> ExtensionCommand:
+    try:
+        return extension_service.update_command_control(db, command_id, payload.control)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _get_running_command(db: Session, command_id: int) -> ExtensionCommand:

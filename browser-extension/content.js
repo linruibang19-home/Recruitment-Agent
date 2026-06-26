@@ -2,6 +2,26 @@
   const extractors = window.RecruitmentExtractors;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const API_BASE = "http://127.0.0.1:8000/api/extension";
+
+  async function commandControl(commandId) {
+    try {
+      const response = await fetch(`${API_BASE}/commands/${commandId}/control`);
+      if (!response.ok) return { control: "running" };
+      return response.json();
+    } catch {
+      return { control: "running" };
+    }
+  }
+
+  async function waitWhilePaused(commandId) {
+    while (true) {
+      const state = await commandControl(commandId);
+      if (state.control === "stopped") return "stopped";
+      if (state.control !== "paused") return "running";
+      await sleep(1200);
+    }
+  }
 
   async function scanChatDetails(limit, delayMs) {
     const conversations = extractors.extractChatSummaries(limit);
@@ -22,6 +42,68 @@
       page_url: location.href,
       conversations,
       details
+    };
+  }
+
+  async function requestResumesBatch(command, limit, delayMs) {
+    const message = String(
+      command.payload?.message || "方便发一份你的简历过来吗？"
+    );
+    const onlyUnread = command.payload?.only_unread !== false;
+    const conversations = extractors.extractChatSummaries(Math.max(limit * 2, limit));
+    const targets = conversations
+      .filter((item) => !onlyUnread || item.has_unread || Number(item.unread_count || 0) > 0)
+      .slice(0, limit);
+    const details = [];
+    let sentCount = 0;
+    let skippedWithResume = 0;
+
+    for (const summary of targets) {
+      const control = await waitWhilePaused(command.id);
+      if (control === "stopped") {
+        return {
+          page_url: location.href,
+          conversations: targets,
+          details,
+          sent_count: sentCount,
+          skipped_with_resume: skippedWithResume,
+          stopped: true
+        };
+      }
+      if (!extractors.clickChatByIndex(Number(summary.index))) continue;
+      await sleep(delayMs);
+      const detail = extractors.extractChatDetail();
+      const hasResume = Boolean(detail.attachments?.length);
+      let requestResult = { sent: false, method: "skipped" };
+      if (hasResume) {
+        skippedWithResume += 1;
+      } else {
+        requestResult = await extractors.sendResumeRequest(message);
+        if (requestResult.sent) {
+          sentCount += 1;
+          detail.messages = [
+            ...(detail.messages || []),
+            { content: message, direction: "out", time: new Date().toISOString() }
+          ];
+        }
+      }
+      details.push({
+        ...detail,
+        candidate_name: detail.candidate_name || summary.name,
+        summary,
+        collected_index: summary.index,
+        resume_request_sent: Boolean(requestResult.sent),
+        request_result: requestResult
+      });
+      await sleep(delayMs);
+    }
+    return {
+      page_url: location.href,
+      conversations: targets,
+      details,
+      sent_count: sentCount,
+      skipped_with_resume: skippedWithResume,
+      stopped: false
     };
   }
 
@@ -48,6 +130,8 @@
         };
       } else if (command.command_type === "scan_chat_details") {
         result = await scanChatDetails(limit, delayMs);
+      } else if (command.command_type === "request_resumes_batch") {
+        result = await requestResumesBatch(command, limit, delayMs);
       } else if (command.command_type === "read_current_chat") {
         result = {
           page_url: location.href,

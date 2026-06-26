@@ -123,6 +123,32 @@ def test_fallback_extracts_visible_boss_chat_cards() -> None:
         playwright.stop()
 
 
+def test_send_resume_request_uses_composer_fallback() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.set_content(
+            """
+            <textarea style="position:absolute; left:620px; top:720px; width:520px; height:80px;"></textarea>
+            <button style="position:absolute; left:1180px; top:760px;" onclick="window.sent=document.querySelector('textarea').value">
+              发送
+            </button>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate(
+            """async () => {
+              const result = await RecruitmentExtractors.sendResumeRequest("方便发一份你的简历过来吗？");
+              return { result, sent: window.sent };
+            }"""
+        )
+        assert result["result"]["sent"] is True
+        assert result["sent"] == "方便发一份你的简历过来吗？"
+    finally:
+        browser.close()
+        playwright.stop()
+
+
 def test_extracts_talent_card_fields() -> None:
     playwright, browser, page = _page()
     try:

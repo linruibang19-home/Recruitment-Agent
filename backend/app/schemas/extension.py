@@ -4,7 +4,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-CommandType = Literal["scan_chats", "scan_chat_details", "read_current_chat", "scan_talents"]
+CommandType = Literal[
+    "scan_chats",
+    "scan_chat_details",
+    "request_resumes_batch",
+    "read_current_chat",
+    "scan_talents",
+]
+CommandControl = Literal["running", "paused", "stopped"]
 
 
 class ExtensionHeartbeat(BaseModel):
@@ -19,6 +26,15 @@ class ExtensionHeartbeat(BaseModel):
 class ExtensionCommandCreate(BaseModel):
     command_type: CommandType
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExtensionCommandControl(BaseModel):
+    control: CommandControl
+
+
+class ExtensionCommandControlRead(BaseModel):
+    command_id: int
+    control: CommandControl = "running"
 
 
 class ExtensionCommandResult(BaseModel):

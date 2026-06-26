@@ -68,6 +68,7 @@ export type BrowserStatus = {
 export type ExtensionCommandType =
   | "scan_chats"
   | "scan_chat_details"
+  | "request_resumes_batch"
   | "read_current_chat"
   | "scan_talents";
 
