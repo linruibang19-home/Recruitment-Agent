@@ -57,8 +57,7 @@ button {
 }
 
 .brand strong,
-.brand span,
-.sidebar-settings span {
+.brand span {
   display: block;
 }
 
@@ -103,28 +102,6 @@ button {
 
 .nav-item.active,
 .nav-item:hover {
-  background: #1c5557;
-  color: #ffffff;
-}
-
-.sidebar-settings {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  height: 40px;
-  margin-top: auto;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #b7d5d3;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar-settings:hover,
-.sidebar-settings.active {
   background: #1c5557;
   color: #ffffff;
 }
@@ -450,6 +427,36 @@ p {
 
 .value-error {
   color: #b42318 !important;
+}
+
+.settings-table-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 22px;
+}
+
+.settings-table-list > div {
+  min-width: 0;
+  padding: 12px 0;
+  border-top: 1px solid #edf1f2;
+}
+
+.settings-table-list strong,
+.settings-table-list span {
+  display: block;
+}
+
+.settings-table-list strong {
+  color: #263b43;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.settings-table-list span {
+  margin-top: 3px;
+  color: #667985;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .panel.wide {
@@ -1546,13 +1553,6 @@ p {
     padding: 0 10px;
   }
 
-  .sidebar-settings {
-    width: auto;
-    min-width: max-content;
-    margin-top: 0;
-    padding: 0 10px;
-  }
-
   .workspace {
     padding: 16px;
   }
@@ -1588,6 +1588,7 @@ p {
 
   .settings-layout,
   .settings-list.horizontal,
+  .settings-table-list,
   .candidate-detail-grid,
   .resume-upload {
     grid-template-columns: 1fr;

@@ -73,7 +73,25 @@ const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard 
   { id: "actions", label: "待确认", icon: ListChecks },
   { id: "automation", label: "沟通采集", icon: Bot },
   { id: "workflows", label: "工作流", icon: Workflow },
-  { id: "audit", label: "审计日志", icon: ClipboardList }
+  { id: "audit", label: "审计日志", icon: ClipboardList },
+  { id: "settings", label: "系统设置", icon: Settings }
+];
+
+const databaseTables = [
+  { name: "jobs", description: "岗位配置、关键词和岗位状态" },
+  { name: "candidates", description: "候选人主档、来源和处理状态" },
+  { name: "candidate_profiles", description: "简历解析后的候选人画像" },
+  { name: "resumes", description: "简历文件路径、解析文本和处理状态" },
+  { name: "scores", description: "候选人与岗位的匹配评分" },
+  { name: "recommendations", description: "每日推荐结果和推荐理由" },
+  { name: "action_queue", description: "待确认的消息、约面和人工动作" },
+  { name: "interactions", description: "沟通记录和平台会话摘要" },
+  { name: "extension_commands", description: "Chrome 扩展采集任务" },
+  { name: "extension_sessions", description: "扩展连接和当前页面状态" },
+  { name: "daily_quota", description: "每日主动触达额度统计" },
+  { name: "audit_logs", description: "自动化执行审计日志" },
+  { name: "workflow_runs", description: "LangGraph 工作流运行记录" },
+  { name: "alembic_version", description: "数据库迁移版本号" }
 ];
 
 const viewMeta: Record<ViewId, { title: string; description: string }> = {
@@ -83,10 +101,10 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   talents: { title: "推荐牛人", description: "读取推荐卡片并生成索要简历草稿。" },
   recommendations: { title: "每日推荐", description: "按岗位查看高匹配候选人和约面建议。" },
   actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
-  automation: { title: "沟通采集", description: "连接 BOSS 沟通页并执行只读信息采集。" },
+  automation: { title: "沟通采集", description: "连接 BOSS 沟通页，采集聊天并受控索要简历。" },
   workflows: { title: "工作流", description: "跟踪 LangGraph 节点、人工确认和失败恢复。" },
   audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
-  settings: { title: "系统设置", description: "查看本地服务、数据存储和自动化安全策略。" }
+  settings: { title: "系统设置", description: "管理本地运行状态、采集策略、数据目录和数据库结构。" }
 };
 
 function candidateEducation(candidate: Candidate): string {
@@ -620,15 +638,6 @@ export function App() {
             </button>
           ))}
         </nav>
-
-        <button
-          className={activeView === "settings" ? "sidebar-settings active" : "sidebar-settings"}
-          onClick={() => setActiveView("settings")}
-          type="button"
-        >
-          <Settings size={18} />
-          <span>系统设置</span>
-        </button>
       </aside>
 
       <main className="workspace">
@@ -1024,8 +1033,8 @@ export function App() {
             <article className="settings-section">
               <div className="settings-heading">
                 <div>
-                  <h2>运行环境</h2>
-                  <p>当前服务仅在本机运行，登录信息和采集文件不会进入 Git。</p>
+                  <h2>运行状态</h2>
+                  <p>检查本地 API、PostgreSQL 和 Chrome 扩展是否可用。</p>
                 </div>
                 <Database size={19} />
               </div>
@@ -1047,8 +1056,12 @@ export function App() {
                   </dd>
                 </div>
                 <div>
-                  <dt>当前采集页面</dt>
+                  <dt>当前 BOSS 页面</dt>
                   <dd>{data?.extension.page_type ?? "未检测"}</dd>
+                </div>
+                <div>
+                  <dt>最近扩展任务</dt>
+                  <dd>{data?.extension.recent_commands[0]?.status ?? "暂无任务"}</dd>
                 </div>
               </dl>
             </article>
@@ -1056,18 +1069,22 @@ export function App() {
             <article className="settings-section">
               <div className="settings-heading">
                 <div>
-                  <h2>自动化策略</h2>
-                  <p>外部写操作默认关闭，消息发送必须经过人工确认。</p>
+                  <h2>采集与发送策略</h2>
+                  <p>批量任务可暂停、继续和停止，发送行为只使用固定话术。</p>
                 </div>
                 <ShieldCheck size={19} />
               </div>
               <dl className="settings-list">
                 <div>
-                  <dt>运行模式</dt>
-                  <dd>只读采集</dd>
+                  <dt>沟通页批量处理</dt>
+                  <dd>每批最多 20 个未读会话</dd>
                 </div>
                 <div>
-                  <dt>每日主动触达上限</dt>
+                  <dt>索要简历话术</dt>
+                  <dd>固定常用语</dd>
+                </div>
+                <div>
+                  <dt>推荐牛人触达上限</dt>
                   <dd>50 次</dd>
                 </div>
                 <div>
@@ -1089,24 +1106,42 @@ export function App() {
               <div className="settings-heading">
                 <div>
                   <h2>本地数据</h2>
-                  <p>敏感数据保存在项目的本地运行目录中。</p>
+                  <p>业务数据进入 PostgreSQL，简历和临时文件保存在本地运行目录。</p>
                 </div>
                 <FileText size={19} />
               </div>
               <dl className="settings-list horizontal">
                 <div>
-                  <dt>浏览器登录态</dt>
-                  <dd>data/profiles/boss-chrome</dd>
+                  <dt>数据库</dt>
+                  <dd>PostgreSQL / recruitment_agent</dd>
                 </div>
                 <div>
-                  <dt>审计截图</dt>
-                  <dd>data/screenshots</dd>
+                  <dt>浏览器登录态</dt>
+                  <dd>使用当前普通 Chrome，不保存账号密码</dd>
                 </div>
                 <div>
                   <dt>简历文件</dt>
                   <dd>data/resumes</dd>
                 </div>
               </dl>
+            </article>
+
+            <article className="settings-section full">
+              <div className="settings-heading">
+                <div>
+                  <h2>数据库表</h2>
+                  <p>当前 public schema 下的核心业务表和系统表。</p>
+                </div>
+                <ClipboardList size={19} />
+              </div>
+              <div className="settings-table-list">
+                {databaseTables.map((table) => (
+                  <div key={table.name}>
+                    <strong>{table.name}</strong>
+                    <span>{table.description}</span>
+                  </div>
+                ))}
+              </div>
             </article>
           </section>
         )}
@@ -1633,7 +1668,7 @@ function RuntimePanel() {
       <div className="check-grid">
         <span>数据库连接正常</span>
         <span>浏览器会话管理</span>
-        <span>沟通列表只读采集</span>
+        <span>沟通页采集与索要简历</span>
         <span>操作记录可追溯</span>
       </div>
     </article>

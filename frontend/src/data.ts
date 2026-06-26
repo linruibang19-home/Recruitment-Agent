@@ -49,7 +49,7 @@ export const actionQueue: ActionItem[] = [
 ];
 
 export const runEvents: RunEvent[] = [
-  { label: "Chrome 扩展", status: "ready", detail: "普通登录态只读采集已接入" },
+  { label: "Chrome 扩展", status: "ready", detail: "普通 Chrome 采集已接入" },
   { label: "PostgreSQL", status: "ready", detail: "数据层已连接" },
   { label: "LangGraph", status: "ready", detail: "工作流和人工确认已接入" }
 ];
