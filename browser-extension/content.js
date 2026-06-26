@@ -31,6 +31,9 @@
       if (!extractors.clickChatByIndex(index)) continue;
       await sleep(delayMs);
       const detail = extractors.extractChatDetail();
+      if (detail.attachments?.length) {
+        detail.attachments = await extractors.enrichAttachmentPreviews(detail.attachments, Math.max(500, delayMs));
+      }
       details.push({
         ...detail,
         candidate_name: detail.candidate_name || summary.name,
@@ -87,6 +90,9 @@
       }
       await sleep(delayMs);
       const detail = extractors.extractChatDetail();
+      if (detail.attachments?.length) {
+        detail.attachments = await extractors.enrichAttachmentPreviews(detail.attachments, Math.max(500, delayMs));
+      }
       const hasResume = Boolean(detail.attachments?.length);
       const alreadyRequested = extractors.hasResumeRequestHistory(detail, message);
       let requestResult = { sent: false, method: "skipped" };

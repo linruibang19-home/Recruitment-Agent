@@ -20,6 +20,14 @@
     "[class*='file-card']",
     "[data-recruitment-agent-attachment]"
   ];
+  const PREVIEW_ROOT_SELECTORS = [
+    "[data-recruitment-agent-preview]",
+    "[role='dialog']",
+    "[class*='dialog']",
+    "[class*='modal']",
+    "[class*='preview']",
+    "[class*='pdf']"
+  ];
   const TALENT_CARD_SELECTORS = [
     "[data-recruitment-agent-talent-card]",
     ".recommend-list .candidate-card",
@@ -118,6 +126,10 @@
     } catch {
       return href;
     }
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   function stableUid(href, text) {
@@ -226,7 +238,7 @@
     });
     const seenAttachments = new Set();
     const attachments = [];
-    for (const element of Array.from(document.querySelectorAll(ATTACHMENT_SELECTORS.join(","))).slice(0, 80)) {
+    for (const [elementIndex, element] of Array.from(document.querySelectorAll(ATTACHMENT_SELECTORS.join(","))).slice(0, 80).entries()) {
       const previewText = normalizeText(element.textContent);
       const href = absoluteHref(element);
       const filename = (previewText.match(/[^\\/:*?"<>|\r\n]+\.pdf/i) || href?.match(/[^/?#]+\.pdf/i) || [null])[0];
@@ -236,6 +248,7 @@
       if (seenAttachments.has(key)) continue;
       seenAttachments.add(key);
       attachments.push({
+        element_index: elementIndex,
         filename,
         attachment_type: filename || /\.pdf/i.test(href || "") ? "pdf" : "resume_card",
         preview_text: previewText || null,
@@ -257,6 +270,76 @@
     item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
     item.click();
     return true;
+  }
+
+  function attachmentElements() {
+    return Array.from(document.querySelectorAll(ATTACHMENT_SELECTORS.join(","))).slice(0, 80);
+  }
+
+  function clickAttachmentByIndex(index) {
+    const element = attachmentElements()[index];
+    if (!element) return false;
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
+    element.click();
+    return true;
+  }
+
+  function extractResumePreviewText() {
+    const roots = Array.from(document.querySelectorAll(PREVIEW_ROOT_SELECTORS.join(",")))
+      .filter((element) => visibleRect(element));
+    const sourceRoots = roots.length ? roots : [document.body];
+    const seen = new Set();
+    const chunks = [];
+    for (const root of sourceRoots) {
+      for (const element of Array.from(root.querySelectorAll("div, section, article, main, p, span, li, td, th"))) {
+        const rect = visibleRect(element);
+        if (!rect) continue;
+        const text = normalizeText(element.textContent);
+        if (text.length < 20 || text.length > 5000 || seen.has(text)) continue;
+        if (/(沟通|职位管理|推荐牛人|招聘规范|求简历|换电话|换微信|约面试|不合适)/.test(text) && text.length < 80) {
+          continue;
+        }
+        seen.add(text);
+        chunks.push(text);
+      }
+    }
+    const combined = chunks
+      .sort((left, right) => right.length - left.length)
+      .slice(0, 20)
+      .join("\n")
+      .trim();
+    return combined.length >= 40 ? combined : "";
+  }
+
+  function closeResumePreview() {
+    const close = findVisibleByText(["button", "span", "div"], [/^关闭$/, /^×$/, /^x$/i]);
+    if (close) {
+      close.click();
+      return true;
+    }
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    return false;
+  }
+
+  async function enrichAttachmentPreviews(attachments, delayMs = 700) {
+    const enriched = [];
+    for (const attachment of attachments || []) {
+      const next = { ...attachment };
+      const index = Number(next.element_index);
+      if (Number.isInteger(index) && clickAttachmentByIndex(index)) {
+        await sleep(delayMs);
+        const text = extractResumePreviewText();
+        if (text) {
+          next.extracted_text = text;
+          next.extraction_method = "preview_dom";
+        }
+        closeResumePreview();
+        await sleep(150);
+      }
+      enriched.push(next);
+    }
+    return enriched;
   }
 
   function findVisibleByText(selectors, patterns) {
@@ -375,6 +458,7 @@
     extractChatSummaries,
     extractChatDetail,
     clickChatByIndex,
+    enrichAttachmentPreviews,
     sendResumeRequest,
     hasResumeRequestHistory,
     extractTalentCards

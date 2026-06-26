@@ -180,6 +180,50 @@ def test_detects_existing_resume_request_history() -> None:
         playwright.stop()
 
 
+def test_enriches_attachment_with_preview_text() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.set_content(
+            """
+            <button
+              data-recruitment-agent-attachment
+              onclick="document.querySelector('[data-recruitment-agent-preview]').style.display='block'"
+            >
+              郑志.pdf 点击预览附件简历
+            </button>
+            <section
+              data-recruitment-agent-preview
+              style="display:none; position:absolute; left:300px; top:80px; width:800px; height:700px;"
+            >
+              <button onclick="this.closest('[data-recruitment-agent-preview]').style.display='none'">关闭</button>
+              <article>
+                郑志 男 年龄 21岁 13322776874 2245769434@qq.com
+                求职意向 Python 期望城市 广州
+                广东工业大学 大数据管理与应用 本科 2023-2027
+                熟悉 Python FastAPI SQL pandas LangChain RAG 机器学习 深度学习
+                项目经历 智能数据分析平台 使用 Docker 部署并完成接口开发
+              </article>
+            </section>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate(
+            """async () => {
+              const detail = RecruitmentExtractors.extractChatDetail();
+              const attachments = await RecruitmentExtractors.enrichAttachmentPreviews(detail.attachments, 20);
+              return attachments[0];
+            }"""
+        )
+        assert result["filename"] == "郑志.pdf"
+        assert result["extraction_method"] == "preview_dom"
+        assert "广东工业大学" in result["extracted_text"]
+        assert "FastAPI" in result["extracted_text"]
+    finally:
+        browser.close()
+        playwright.stop()
+
+
 def test_request_resumes_batch_skips_existing_request() -> None:
     playwright, browser, page = _page()
     try:

@@ -233,20 +233,13 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
         attachment_uploads: list[dict[str, Any]] = []
         for detail_item in details[:100]:
             nested_result = {**result, "detail": detail_item, "details": []}
-            candidate_id, attachment_urls, _ = ingest_chat_result(db, nested_result)
+            candidate_id, attachment_urls, nested_uploads = ingest_chat_result(db, nested_result)
             if candidate_id is None:
                 continue
             if first_candidate_id is None:
                 first_candidate_id = candidate_id
                 first_attachment_urls = attachment_urls
-            if attachment_urls:
-                attachment_uploads.append(
-                    {
-                        "candidate_id": candidate_id,
-                        "attachment_urls": attachment_urls,
-                        "job_id": result.get("job_id"),
-                    }
-                )
+            attachment_uploads.extend(nested_uploads)
         return first_candidate_id, first_attachment_urls, attachment_uploads
 
     detail = result.get("detail") or result
@@ -279,6 +272,15 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
         str(item["href"])
         for item in attachments
         if isinstance(item, dict) and item.get("href")
+    ]
+    attachment_texts = [
+        {
+            "original_filename": item.get("filename") or "boss-preview-resume.txt",
+            "parsed_text": str(item.get("extracted_text") or "").strip(),
+            "source": item.get("extraction_method") or "boss_preview",
+        }
+        for item in attachments
+        if isinstance(item, dict) and str(item.get("extracted_text") or "").strip()
     ]
     if attachments:
         candidate.status = "resume_requested"
@@ -320,11 +322,16 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
             "attachment_count": len(attachments),
         },
     )
-    attachment_uploads = (
-        [{"candidate_id": candidate.id, "attachment_urls": attachment_urls, "job_id": result.get("job_id")}]
-        if attachment_urls
-        else []
-    )
+    attachment_uploads = []
+    if attachment_urls or attachment_texts:
+        attachment_uploads.append(
+            {
+                "candidate_id": candidate.id,
+                "attachment_urls": attachment_urls,
+                "attachment_texts": attachment_texts,
+                "job_id": result.get("job_id"),
+            }
+        )
     return candidate.id, attachment_urls, attachment_uploads
 
 

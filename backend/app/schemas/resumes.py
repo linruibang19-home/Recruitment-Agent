@@ -55,6 +55,12 @@ class ResumeProcessResult(BaseModel):
     ocr_used: bool
 
 
+class ResumeTextCreate(BaseModel):
+    original_filename: str | None = None
+    parsed_text: str = Field(min_length=40, max_length=200_000)
+    source: str = "boss_preview"
+
+
 class CandidateDetailRead(BaseModel):
     candidate: CandidateRead
     profile: CandidateProfileRead | None = None

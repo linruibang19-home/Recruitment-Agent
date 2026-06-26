@@ -19,9 +19,10 @@
 - 扩展长任务支持暂停、继续和停止控制。
 - 候选人、消息去重入库和索要简历草稿。
 - PDF 直链接入既有解析、OCR、画像和评分流程。
+- 无直链附件简历支持点击预览并提取预览文本，进入文本简历处理、画像和评分流程。
 - 前端扩展状态、任务提交和任务记录。
 - DOM 解析自动化测试与真实数据库闭环验证。
-- `PYTHONPATH=backend pytest tests -q`: 17 项通过。
+- `PYTHONPATH=backend pytest tests -q`: 19 项通过。
 - `npm run build`: 通过。
 - `python -m alembic -c alembic.ini upgrade head`: 已升级到 `20260627_0004`。
 

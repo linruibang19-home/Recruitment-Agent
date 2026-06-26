@@ -27,7 +27,7 @@ def create_resume(
     *,
     candidate_id: int,
     original_filename: str,
-    file_path: str,
+    file_path: str | None,
 ) -> Resume:
     resume = Resume(
         candidate_id=candidate_id,

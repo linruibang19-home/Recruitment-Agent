@@ -97,10 +97,32 @@ async function uploadAttachments(candidateId, jobId, urls) {
   }
 }
 
+async function uploadAttachmentTexts(candidateId, jobId, texts) {
+  for (const item of texts || []) {
+    const parsedText = String(item?.parsed_text || "").trim();
+    if (parsedText.length < 40) continue;
+    const query = jobId ? `?job_id=${jobId}` : "";
+    await fetch(`http://127.0.0.1:8000/api/candidates/${candidateId}/resumes/text${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        original_filename: item.original_filename || "boss-preview-resume.txt",
+        parsed_text: parsedText,
+        source: item.source || "boss_preview"
+      })
+    }).catch(() => null);
+  }
+}
+
 async function uploadAttachmentJobs(jobs) {
   for (const job of jobs || []) {
-    if (!job?.candidate_id || !Array.isArray(job.attachment_urls)) continue;
-    await uploadAttachments(job.candidate_id, job.job_id, job.attachment_urls);
+    if (!job?.candidate_id) continue;
+    if (Array.isArray(job.attachment_urls)) {
+      await uploadAttachments(job.candidate_id, job.job_id, job.attachment_urls);
+    }
+    if (Array.isArray(job.attachment_texts)) {
+      await uploadAttachmentTexts(job.candidate_id, job.job_id, job.attachment_texts);
+    }
   }
 }
 
