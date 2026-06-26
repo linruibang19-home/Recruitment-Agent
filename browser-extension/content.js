@@ -55,8 +55,11 @@
       .filter((item) => !onlyUnread || item.has_unread || Number(item.unread_count || 0) > 0)
       .slice(0, limit);
     const details = [];
+    const failures = [];
     let sentCount = 0;
     let skippedWithResume = 0;
+    let skippedAlreadyRequested = 0;
+    let failedCount = 0;
 
     for (const summary of targets) {
       const control = await waitWhilePaused(command.id);
@@ -65,18 +68,34 @@
           page_url: location.href,
           conversations: targets,
           details,
+          failures,
           sent_count: sentCount,
           skipped_with_resume: skippedWithResume,
+          skipped_already_requested: skippedAlreadyRequested,
+          failed_count: failedCount,
           stopped: true
         };
       }
-      if (!extractors.clickChatByIndex(Number(summary.index))) continue;
+      if (!extractors.clickChatByIndex(Number(summary.index))) {
+        failedCount += 1;
+        failures.push({
+          summary,
+          reason: "click_failed",
+          message: "未能打开候选人会话"
+        });
+        continue;
+      }
       await sleep(delayMs);
       const detail = extractors.extractChatDetail();
       const hasResume = Boolean(detail.attachments?.length);
+      const alreadyRequested = extractors.hasResumeRequestHistory(detail, message);
       let requestResult = { sent: false, method: "skipped" };
       if (hasResume) {
         skippedWithResume += 1;
+        requestResult = { sent: false, method: "skipped_with_resume" };
+      } else if (alreadyRequested) {
+        skippedAlreadyRequested += 1;
+        requestResult = { sent: false, method: "skipped_already_requested" };
       } else {
         requestResult = await extractors.sendResumeRequest(message);
         if (requestResult.sent) {
@@ -85,6 +104,13 @@
             ...(detail.messages || []),
             { content: message, direction: "out", time: new Date().toISOString() }
           ];
+        } else {
+          failedCount += 1;
+          failures.push({
+            summary,
+            reason: requestResult.method || "send_failed",
+            message: requestResult.error || "索要简历话术发送失败"
+          });
         }
       }
       details.push({
@@ -93,6 +119,7 @@
         summary,
         collected_index: summary.index,
         resume_request_sent: Boolean(requestResult.sent),
+        resume_request_already_exists: alreadyRequested,
         request_result: requestResult
       });
       await sleep(delayMs);
@@ -101,8 +128,11 @@
       page_url: location.href,
       conversations: targets,
       details,
+      failures,
       sent_count: sentCount,
       skipped_with_resume: skippedWithResume,
+      skipped_already_requested: skippedAlreadyRequested,
+      failed_count: failedCount,
       stopped: false
     };
   }

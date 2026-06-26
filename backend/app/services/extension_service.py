@@ -306,7 +306,7 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
             )
     else:
         candidate.status = "resume_requested"
-        if not detail.get("resume_request_sent"):
+        if not detail.get("resume_request_sent") and not detail.get("resume_request_already_exists"):
             _ensure_resume_draft(db, candidate)
     db.commit()
     audit_repo.create_audit_log(

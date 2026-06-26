@@ -546,7 +546,9 @@ export function App() {
               ? `沟通列表扫描任务 #${command.id} 已提交。`
               : action === "scan_chat_details"
                 ? `批量读取聊天任务 #${command.id} 已提交；扩展会逐个打开左侧会话并写入候选人库。`
-              : `当前聊天读取任务 #${command.id} 已提交，结果会写入候选人库并生成待确认草稿。`
+                : action === "request_resumes_batch"
+                  ? `批量索要简历任务 #${command.id} 已提交；本批最多处理 20 个未读会话，可暂停、继续或停止。`
+                  : `当前聊天读取任务 #${command.id} 已提交，结果会写入候选人库并生成待确认草稿。`
           );
         }
         await loadDashboard();

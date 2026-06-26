@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 
 
 EXTRACTOR_PATH = Path(__file__).resolve().parents[2] / "browser-extension" / "extractors.js"
+CONTENT_PATH = Path(__file__).resolve().parents[2] / "browser-extension" / "content.js"
 
 
 def _page():
@@ -144,6 +145,125 @@ def test_send_resume_request_uses_composer_fallback() -> None:
         )
         assert result["result"]["sent"] is True
         assert result["sent"] == "方便发一份你的简历过来吗？"
+    finally:
+        browser.close()
+        playwright.stop()
+
+
+def test_detects_existing_resume_request_history() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_content("<main></main>")
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate(
+            """() => ({
+              asked: RecruitmentExtractors.hasResumeRequestHistory({
+                messages: [
+                  { direction: "out", content: "方便发一份你的简历过来吗？" }
+                ]
+              }, "方便发一份你的简历过来吗？"),
+              received: RecruitmentExtractors.hasResumeRequestHistory({
+                messages: [
+                  { direction: "in", content: "您好，我的简历已发送啦，希望您能看看～" }
+                ]
+              }, "方便发一份你的简历过来吗？"),
+              unrelated: RecruitmentExtractors.hasResumeRequestHistory({
+                messages: [
+                  { direction: "in", content: "您好，我对这个岗位很感兴趣。" }
+                ]
+              }, "方便发一份你的简历过来吗？")
+            })"""
+        )
+        assert result == {"asked": True, "received": True, "unrelated": False}
+    finally:
+        browser.close()
+        playwright.stop()
+
+
+def test_request_resumes_batch_skips_existing_request() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.set_content(
+            """
+            <div class="chat-list" style="position:absolute; left:320px; top:180px; width:360px;">
+              <button class="chat-item" data-index="0" onclick="selectChat(0)">
+                <span class="name">候选人A</span>
+                <span class="unread">1</span>
+                <span class="last-msg">您好，我想了解岗位</span>
+              </button>
+              <button class="chat-item" data-index="1" onclick="selectChat(1)">
+                <span class="name">候选人B</span>
+                <span class="unread">1</span>
+                <span class="last-msg">您好，我很感兴趣</span>
+              </button>
+            </div>
+            <section id="chat" style="position:absolute; left:720px; top:180px; width:600px; height:520px;"></section>
+            <textarea style="position:absolute; left:720px; top:740px; width:420px; height:60px;"></textarea>
+            <button style="position:absolute; left:1160px; top:748px;" onclick="window.sentMessages.push(document.querySelector('textarea').value)">
+              发送
+            </button>
+            <script>
+              window.sentMessages = [];
+              window.selectChat = (index) => {
+                const chat = document.querySelector("#chat");
+                if (index === 0) {
+                  chat.innerHTML = `
+                    <div class="chat-header"><span class="name">候选人A</span></div>
+                    <div class="message-item incoming">您好，我想了解岗位。</div>
+                  `;
+                } else {
+                  chat.innerHTML = `
+                    <div class="chat-header"><span class="name">候选人B</span></div>
+                    <div class="message-item outgoing">方便发一份你的简历过来吗？</div>
+                  `;
+                }
+              };
+              window.selectChat(0);
+            </script>
+            """
+        )
+        page.evaluate(
+            """
+            () => {
+              window.fetch = async () => ({ ok: true, json: async () => ({ control: "running" }) });
+              window.chrome = {
+                runtime: {
+                  onMessage: { addListener: (fn) => { window.__contentListener = fn; } },
+                  sendMessage: () => ({ catch: () => null })
+                }
+              };
+            }
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        page.add_script_tag(path=str(CONTENT_PATH))
+        result = page.evaluate(
+            """() => new Promise((resolve) => {
+              window.__contentListener({
+                type: "run_command",
+                command: {
+                  id: 10,
+                  command_type: "request_resumes_batch",
+                  payload: {
+                    limit: 20,
+                    delay_ms: 10,
+                    only_unread: true,
+                    message: "方便发一份你的简历过来吗？"
+                  }
+                }
+              }, null, resolve);
+            }).then((response) => ({
+              response,
+              sentMessages: window.sentMessages
+            }))"""
+        )
+        batch = result["response"]["result"]
+        assert result["response"]["ok"] is True
+        assert result["sentMessages"] == ["方便发一份你的简历过来吗？"]
+        assert batch["sent_count"] == 1
+        assert batch["skipped_already_requested"] == 1
+        assert batch["failed_count"] == 0
     finally:
         browser.close()
         playwright.stop()

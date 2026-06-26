@@ -328,6 +328,19 @@
     return { sent: true, method: "composer" };
   }
 
+  function hasResumeRequestHistory(detail, requestMessage) {
+    const messages = Array.isArray(detail?.messages) ? detail.messages : [];
+    const normalizedRequest = normalizeText(requestMessage);
+    return messages.some((message) => {
+      const content = normalizeText(message?.content || message);
+      if (!content) return false;
+      if (normalizedRequest && content.includes(normalizedRequest)) return true;
+      return /(方便|麻烦|可以|请|能否|能不能).{0,12}(发|发送|提供|投递).{0,10}(简历|PDF)/.test(content)
+        || /(求简历|发一份.*简历|发送.*简历|简历.*发过来)/.test(content)
+        || /(简历已发送|我的简历已发送|这是我的简历|已投递简历)/.test(content);
+    });
+  }
+
   function extractTalentCards(limit = 30) {
     return firstMatchingElements(TALENT_CARD_SELECTORS).slice(0, limit).flatMap((card) => {
       const rawText = normalizeText(card.textContent);
@@ -363,6 +376,7 @@
     extractChatDetail,
     clickChatByIndex,
     sendResumeRequest,
+    hasResumeRequestHistory,
     extractTalentCards
   };
 })(typeof window !== "undefined" ? window : globalThis);
