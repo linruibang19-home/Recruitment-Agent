@@ -12,10 +12,14 @@
 - Manifest V3 项目扩展及安装说明。
 - 扩展心跳与 PostgreSQL 持久化任务队列。
 - 沟通列表、当前聊天、附件和推荐牛人页面解析。
+- 沟通页批量读取：扩展可逐个打开左侧可见会话，读取聊天详情和附件卡片。
 - 候选人、消息去重入库和索要简历草稿。
 - PDF 直链接入既有解析、OCR、画像和评分流程。
 - 前端扩展状态、任务提交和任务记录。
 - DOM 解析自动化测试与真实数据库闭环验证。
+- `python -m pytest -q`: 14 项通过。
+- `npm run build`: 通过。
+- `python -m alembic -c alembic.ini upgrade head`: 已升级到 `20260626_0003`。
 
 ## Phase 1 Status
 

@@ -496,7 +496,7 @@ export function App() {
   }, [loadDashboard]);
 
   const runAutomationAction = useCallback(
-    async (action: "refresh" | "scan_chats" | "read_current_chat") => {
+    async (action: "refresh" | "scan_chats" | "scan_chat_details" | "read_current_chat") => {
       setAutomationBusy(action);
       setAutomationNotice(null);
       try {
@@ -504,10 +504,12 @@ export function App() {
           await loadDashboard();
           setAutomationNotice("已重新检测扩展连接状态。");
         } else {
-          const command = await queueExtensionCommand(action, { limit: 30 });
+          const command = await queueExtensionCommand(action, { limit: 30, delay_ms: 1400 });
           setAutomationNotice(
             action === "scan_chats"
               ? `沟通列表扫描任务 #${command.id} 已提交。`
+              : action === "scan_chat_details"
+                ? `批量读取聊天任务 #${command.id} 已提交；扩展会逐个打开左侧会话并写入候选人库。`
               : `当前聊天读取任务 #${command.id} 已提交，结果会写入候选人库并生成待确认草稿。`
           );
         }
@@ -826,6 +828,15 @@ export function App() {
                   <button
                     className="primary-button"
                     disabled={automationBusy !== null || !data?.extension.connected}
+                    onClick={() => void runAutomationAction("scan_chat_details")}
+                    type="button"
+                  >
+                    <Bot size={16} />
+                    <span>{automationBusy === "scan_chat_details" ? "提交中" : "批量读取聊天"}</span>
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={automationBusy !== null || !data?.extension.connected}
                     onClick={() => void runAutomationAction("read_current_chat")}
                     type="button"
                   >
@@ -858,6 +869,8 @@ export function App() {
                           #{command.id}{" "}
                           {command.command_type === "scan_chats"
                             ? "扫描沟通列表"
+                            : command.command_type === "scan_chat_details"
+                              ? "批量读取聊天"
                             : command.command_type === "read_current_chat"
                               ? "读取当前聊天"
                               : "扫描推荐牛人"}

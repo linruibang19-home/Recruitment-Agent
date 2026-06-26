@@ -188,14 +188,41 @@ def _ensure_resume_draft(db: Session, candidate: Candidate) -> ActionQueueItem |
     return action
 
 
-def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None, list[str]]:
+def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None, list[str], list[dict[str, Any]]]:
+    details = [
+        item
+        for item in result.get("details") or []
+        if isinstance(item, dict) and (item.get("candidate_name") or item.get("messages"))
+    ]
+    if details:
+        first_candidate_id: int | None = None
+        first_attachment_urls: list[str] = []
+        attachment_uploads: list[dict[str, Any]] = []
+        for detail_item in details[:100]:
+            nested_result = {**result, "detail": detail_item, "details": []}
+            candidate_id, attachment_urls, _ = ingest_chat_result(db, nested_result)
+            if candidate_id is None:
+                continue
+            if first_candidate_id is None:
+                first_candidate_id = candidate_id
+                first_attachment_urls = attachment_urls
+            if attachment_urls:
+                attachment_uploads.append(
+                    {
+                        "candidate_id": candidate_id,
+                        "attachment_urls": attachment_urls,
+                        "job_id": result.get("job_id"),
+                    }
+                )
+        return first_candidate_id, first_attachment_urls, attachment_uploads
+
     detail = result.get("detail") or result
     conversations = result.get("conversations") or []
     if not detail.get("candidate_name") and conversations:
         for summary in conversations[:100]:
             _upsert_chat_candidate(db, summary)
         db.commit()
-        return None, []
+        return None, [], []
 
     candidate = _upsert_chat_candidate(db, detail)
     message_count = _save_messages(db, candidate, detail.get("messages") or [])
@@ -244,7 +271,12 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
             "attachment_count": len(attachments),
         },
     )
-    return candidate.id, attachment_urls
+    attachment_uploads = (
+        [{"candidate_id": candidate.id, "attachment_urls": attachment_urls, "job_id": result.get("job_id")}]
+        if attachment_urls
+        else []
+    )
+    return candidate.id, attachment_urls, attachment_uploads
 
 
 def ingest_talent_result(
@@ -295,11 +327,14 @@ def ingest_talent_result(
 
 def complete_command(
     db: Session, command: ExtensionCommand, result: dict[str, Any]
-) -> tuple[int | None, list[str]]:
+) -> tuple[int | None, list[str], list[dict[str, Any]]]:
     candidate_id = None
     attachment_urls: list[str] = []
-    if command.command_type in {"scan_chats", "read_current_chat"}:
-        candidate_id, attachment_urls = ingest_chat_result(db, result)
+    attachment_uploads: list[dict[str, Any]] = []
+    if command.command_type in {"scan_chats", "scan_chat_details", "read_current_chat"}:
+        candidate_id, attachment_urls, attachment_uploads = ingest_chat_result(
+            db, {**result, "job_id": command.payload.get("job_id")}
+        )
     elif command.command_type == "scan_talents":
         result = {**result, **ingest_talent_result(db, result=result, command_payload=command.payload)}
     command.result = result
@@ -307,7 +342,7 @@ def complete_command(
     command.completed_at = _now()
     db.commit()
     db.refresh(command)
-    return candidate_id, attachment_urls
+    return candidate_id, attachment_urls, attachment_uploads
 
 
 def fail_command(

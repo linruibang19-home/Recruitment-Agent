@@ -48,6 +48,34 @@ def test_extracts_chat_summary_detail_and_attachment() -> None:
         playwright.stop()
 
 
+def test_clicks_chat_item_by_index() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_content(
+            """
+            <div class="chat-list">
+              <button class="chat-item" onclick="window.clicked='first'">
+                <span class="name">候选人A</span>
+              </button>
+              <button class="chat-item" onclick="window.clicked='second'">
+                <span class="name">候选人B</span>
+              </button>
+            </div>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        clicked = page.evaluate(
+            """() => {
+              const ok = RecruitmentExtractors.clickChatByIndex(1);
+              return { ok, clicked: window.clicked };
+            }"""
+        )
+        assert clicked == {"ok": True, "clicked": "second"}
+    finally:
+        browser.close()
+        playwright.stop()
+
+
 def test_extracts_talent_card_fields() -> None:
     playwright, browser, page = _page()
     try:

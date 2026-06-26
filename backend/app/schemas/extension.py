@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-CommandType = Literal["scan_chats", "read_current_chat", "scan_talents"]
+CommandType = Literal["scan_chats", "scan_chat_details", "read_current_chat", "scan_talents"]
 
 
 class ExtensionHeartbeat(BaseModel):
@@ -62,3 +62,4 @@ class ExtensionCompleteRead(BaseModel):
     command: ExtensionCommandRead
     candidate_id: int | None = None
     attachment_urls: list[str] = Field(default_factory=list)
+    attachment_uploads: list[dict[str, Any]] = Field(default_factory=list)

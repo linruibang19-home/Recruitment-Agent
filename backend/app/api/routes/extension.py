@@ -86,7 +86,7 @@ def complete_command(
     if command.extension_id != payload.extension_id:
         raise HTTPException(status_code=409, detail="扩展任务归属不匹配")
     try:
-        candidate_id, attachment_urls = extension_service.complete_command(
+        candidate_id, attachment_urls, attachment_uploads = extension_service.complete_command(
             db, command, payload.result
         )
     except Exception as exc:
@@ -102,6 +102,7 @@ def complete_command(
         command=command,
         candidate_id=candidate_id,
         attachment_urls=attachment_urls,
+        attachment_uploads=attachment_uploads,
     )
 
 

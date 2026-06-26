@@ -65,7 +65,11 @@ export type BrowserStatus = {
   last_error?: string | null;
 };
 
-export type ExtensionCommandType = "scan_chats" | "read_current_chat" | "scan_talents";
+export type ExtensionCommandType =
+  | "scan_chats"
+  | "scan_chat_details"
+  | "read_current_chat"
+  | "scan_talents";
 
 export type ExtensionCommand = {
   id: number;

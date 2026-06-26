@@ -97,6 +97,13 @@ async function uploadAttachments(candidateId, jobId, urls) {
   }
 }
 
+async function uploadAttachmentJobs(jobs) {
+  for (const job of jobs || []) {
+    if (!job?.candidate_id || !Array.isArray(job.attachment_urls)) continue;
+    await uploadAttachments(job.candidate_id, job.job_id, job.attachment_urls);
+  }
+}
+
 async function poll() {
   const extensionId = await getExtensionId();
   const command = await api(`/commands/next?extension_id=${encodeURIComponent(extensionId)}`);
@@ -119,7 +126,9 @@ async function poll() {
       method: "POST",
       body: JSON.stringify({ extension_id: extensionId, result: response.result })
     });
-    if (completed.candidate_id && completed.attachment_urls?.length) {
+    if (completed.attachment_uploads?.length) {
+      await uploadAttachmentJobs(completed.attachment_uploads);
+    } else if (completed.candidate_id && completed.attachment_urls?.length) {
       await uploadAttachments(
         completed.candidate_id,
         command.payload?.job_id,

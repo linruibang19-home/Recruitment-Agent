@@ -52,7 +52,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint(
-            "command_type in ('scan_chats','read_current_chat','scan_talents')",
+            "command_type in ('scan_chats','scan_chat_details','read_current_chat','scan_talents')",
             name="extension_commands_type_check",
         ),
         sa.CheckConstraint(

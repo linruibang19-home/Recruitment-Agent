@@ -47,6 +47,10 @@
     return [];
   }
 
+  function chatItems() {
+    return firstMatchingElements(CHAT_ITEM_SELECTORS);
+  }
+
   function childText(element, selectors) {
     for (const selector of selectors) {
       const child = element.querySelector(selector);
@@ -102,11 +106,12 @@
   }
 
   function extractChatSummaries(limit = 30) {
-    return firstMatchingElements(CHAT_ITEM_SELECTORS).slice(0, limit).flatMap((item) => {
+    return chatItems().slice(0, limit).flatMap((item, index) => {
       const rawText = normalizeText(item.textContent);
       if (!rawText) return [];
       const unreadText = childText(item, [".badge", ".unread", "[class*='unread']"]) || "";
       return [{
+        index,
         name: childText(item, [".name", ".user-name", ".friend-name", "[class*='name']"]) || rawText.split(" ")[0],
         preview: childText(item, [".last-msg", ".preview", ".message-text", "[class*='last']"]),
         unread_count: Number((unreadText.match(/\d+/) || ["0"])[0]),
@@ -167,6 +172,15 @@
     };
   }
 
+  function clickChatByIndex(index) {
+    const item = chatItems()[index];
+    if (!item) return false;
+    item.scrollIntoView({ block: "center", inline: "nearest" });
+    item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
+    item.click();
+    return true;
+  }
+
   function extractTalentCards(limit = 30) {
     return firstMatchingElements(TALENT_CARD_SELECTORS).slice(0, limit).flatMap((card) => {
       const rawText = normalizeText(card.textContent);
@@ -200,6 +214,7 @@
     pageType,
     extractChatSummaries,
     extractChatDetail,
+    clickChatByIndex,
     extractTalentCards
   };
 })(typeof window !== "undefined" ? window : globalThis);
