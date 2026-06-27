@@ -171,6 +171,34 @@ export type ChatLoopStatus = {
   last_message: string;
 };
 
+export type CandidatePipelineItem = {
+  candidate_id: number;
+  name?: string | null;
+  source: string;
+  status: string;
+  stage: string;
+  stage_label: string;
+  next_action: string;
+  has_resume: boolean;
+  resume_count: number;
+  message_count: number;
+  pending_action_count: number;
+  best_score?: number | null;
+  last_interaction_at?: string | null;
+  updated_at: string;
+};
+
+export type CandidatePipelineSummary = {
+  total: number;
+  discovered: number;
+  resume_requested: number;
+  resume_received: number;
+  parsed: number;
+  scored: number;
+  pending_review: number;
+  items: CandidatePipelineItem[];
+};
+
 export type CandidateProfile = {
   id: number;
   candidate_id: number;

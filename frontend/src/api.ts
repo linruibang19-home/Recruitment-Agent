@@ -4,6 +4,7 @@ import type {
   AiHealth,
   Candidate,
   CandidateDeleteResult,
+  CandidatePipelineSummary,
   ChatLoopStatus,
   CandidateDetail,
   ExtensionCommand,
@@ -46,6 +47,7 @@ export type DashboardData = {
   greetingQuota: GreetingQuota;
   workflows: PageResponse<WorkflowRun>;
   chatLoop: ChatLoopStatus;
+  pipeline: CandidatePipelineSummary;
 };
 
 export async function fetchDashboardData(): Promise<DashboardData> {
@@ -60,7 +62,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     actions,
     greetingQuota,
     workflows,
-    chatLoop
+    chatLoop,
+    pipeline
   ] = await Promise.all([
     request<{ status: string }>("/health/database"),
     request<AiHealth>("/health/ai"),
@@ -72,7 +75,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     request<PageResponse<ActionQueueEntry>>("/actions?limit=50"),
     request<GreetingQuota>("/quota/greetings"),
     request<PageResponse<WorkflowRun>>("/workflows?limit=50"),
-    request<ChatLoopStatus>("/automation/chat-loop/status")
+    request<ChatLoopStatus>("/automation/chat-loop/status"),
+    request<CandidatePipelineSummary>("/candidates/pipeline?limit=80")
   ]);
 
   return {
@@ -86,7 +90,8 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     actions,
     greetingQuota,
     workflows,
-    chatLoop
+    chatLoop,
+    pipeline
   };
 }
 

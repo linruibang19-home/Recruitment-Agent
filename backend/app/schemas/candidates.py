@@ -56,3 +56,31 @@ class CandidateDeleteResult(BaseModel):
     candidate_id: int
     deleted_resume_files: int
     deleted: bool = True
+
+
+class CandidatePipelineItem(BaseModel):
+    candidate_id: int
+    name: str | None = None
+    source: str
+    status: str
+    stage: str
+    stage_label: str
+    next_action: str
+    has_resume: bool
+    resume_count: int
+    message_count: int
+    pending_action_count: int
+    best_score: float | None = None
+    last_interaction_at: datetime | None = None
+    updated_at: datetime
+
+
+class CandidatePipelineSummary(BaseModel):
+    total: int
+    discovered: int
+    resume_requested: int
+    resume_received: int
+    parsed: int
+    scored: int
+    pending_review: int
+    items: list[CandidatePipelineItem]

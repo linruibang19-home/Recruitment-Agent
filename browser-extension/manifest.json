@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "招聘 Agent 只读采集器",
+  "name": "招聘 Agent 采集与受控执行器",
   "version": "0.1.0",
-  "description": "在已登录的 BOSS 直聘页面中执行只读采集，并回传到本地招聘工作台。",
+  "description": "在已登录的 BOSS 直聘页面中采集沟通信息，并在人工显式触发时执行固定索要简历话术。",
   "permissions": ["storage", "tabs", "scripting"],
   "host_permissions": [
     "https://www.zhipin.com/*",
@@ -14,7 +14,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "招聘 Agent 只读采集器",
+    "default_title": "招聘 Agent 采集与受控执行器",
     "default_popup": "popup.html"
   },
   "content_scripts": [

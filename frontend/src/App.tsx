@@ -49,6 +49,7 @@ import type {
   AuditLog,
   Candidate,
   CandidateDetail,
+  CandidatePipelineItem,
   GreetingQuota,
   Job,
   Metric,
@@ -77,7 +78,7 @@ const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard 
   { id: "talents", label: "推荐牛人", icon: Search },
   { id: "recommendations", label: "每日推荐", icon: Award },
   { id: "actions", label: "待确认", icon: ListChecks },
-  { id: "automation", label: "沟通采集", icon: Bot },
+  { id: "automation", label: "BOSS 流程", icon: Bot },
   { id: "workflows", label: "工作流", icon: Workflow },
   { id: "audit", label: "审计日志", icon: ClipboardList },
   { id: "settings", label: "系统设置", icon: Settings }
@@ -107,7 +108,7 @@ const viewMeta: Record<ViewId, { title: string; description: string }> = {
   talents: { title: "推荐牛人", description: "读取推荐卡片并生成索要简历草稿。" },
   recommendations: { title: "每日推荐", description: "按岗位查看高匹配候选人和约面建议。" },
   actions: { title: "待确认", description: "审核消息发送、约面等需要人工确认的操作。" },
-  automation: { title: "沟通采集", description: "连接 BOSS 沟通页，采集聊天并受控索要简历。" },
+  automation: { title: "BOSS 候选人流程", description: "从未读沟通到索要简历、解析评分和推荐确认的流程队列。" },
   workflows: { title: "工作流", description: "跟踪 LangGraph 节点、人工确认和失败恢复。" },
   audit: { title: "审计日志", description: "查询浏览器会话和采集任务的执行记录。" },
   settings: { title: "系统设置", description: "管理本地运行状态、采集策略、数据目录和数据库结构。" }
@@ -210,6 +211,58 @@ function auditActionLabel(actionType: string): string {
   };
   return labels[actionType] ?? actionType;
 }
+
+const pipelineStageLabels: Array<{
+  key: "discovered" | "resume_requested" | "resume_received" | "parsed" | "scored" | "pending_review";
+  label: string;
+}> = [
+  { key: "discovered", label: "已发现" },
+  { key: "resume_requested", label: "已索要" },
+  { key: "resume_received", label: "已收简历" },
+  { key: "parsed", label: "已解析" },
+  { key: "scored", label: "已评分" },
+  { key: "pending_review", label: "待确认" }
+];
+
+function PipelineQueue({ items }: { items: CandidatePipelineItem[] }) {
+  if (!items.length) {
+    return <div className="empty-state">暂无候选人流程记录。先在 BOSS 沟通页执行扫描或读取。</div>;
+  }
+  return (
+    <div className="pipeline-queue">
+      {items.slice(0, 18).map((item) => (
+        <article className={`pipeline-card stage-${item.stage}`} key={item.candidate_id}>
+          <div className="pipeline-card-main">
+            <span className="pipeline-stage">{item.stage_label}</span>
+            <h3>{item.name ?? `候选人 #${item.candidate_id}`}</h3>
+            <p>{item.next_action}</p>
+          </div>
+          <dl className="pipeline-card-meta">
+            <div>
+              <dt>消息</dt>
+              <dd>{item.message_count}</dd>
+            </div>
+            <div>
+              <dt>简历</dt>
+              <dd>{item.resume_count}</dd>
+            </div>
+            <div>
+              <dt>评分</dt>
+              <dd>{item.best_score != null ? Math.round(item.best_score) : "-"}</dd>
+            </div>
+            <div>
+              <dt>待确认</dt>
+              <dd>{item.pending_action_count}</dd>
+            </div>
+          </dl>
+          <time>{new Date(item.updated_at).toLocaleString("zh-CN")}</time>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+const agentChain = ["沟通采集", "简历解析", "匹配评分", "推荐决策", "审计恢复"];
 
 function CandidateTable({
   candidates,
@@ -919,10 +972,18 @@ export function App() {
             <article className="panel full">
               <div className="panel-header">
                 <div>
-                  <h2>Chrome 扩展采集</h2>
-                  <p>使用当前普通 Chrome 的登录态读取沟通页，不再启动独立自动化浏览器。</p>
+                  <h2>候选人流程队列</h2>
+                  <p>以候选人为主线推进：发现会话、索要简历、接收附件、解析评分、推荐确认。</p>
                 </div>
                 <Bot size={20} />
+              </div>
+              <div className="agent-chain">
+                {agentChain.map((agent, index) => (
+                  <span key={agent}>
+                    <strong>{index + 1}</strong>
+                    {agent} Agent
+                  </span>
+                ))}
               </div>
               <div className="automation-toolbar">
                 <div className={`browser-state state-${data?.extension.connected ? "ready" : "stopped"}`}>
@@ -1008,6 +1069,15 @@ export function App() {
                 </div>
               </div>
               {automationNotice && <div className="automation-notice">{automationNotice}</div>}
+              <div className="pipeline-stage-grid">
+                {pipelineStageLabels.map((stage) => (
+                  <div className="pipeline-stage-card" key={stage.key}>
+                    <span>{stage.label}</span>
+                    <strong>{data?.pipeline[stage.key] ?? 0}</strong>
+                  </div>
+                ))}
+              </div>
+              <PipelineQueue items={data?.pipeline.items ?? []} />
               <div className="loop-control-card">
                 <div>
                   <span className={data?.chatLoop.running ? "status-pill active" : "status-pill"}>
@@ -1064,8 +1134,8 @@ export function App() {
             <article className="panel full">
               <div className="panel-header">
                 <div>
-                  <h2>扩展任务</h2>
-                  <p>任务由当前激活的 BOSS 标签页执行，完成后自动写入候选人库和审计日志。</p>
+                  <h2>底层执行记录</h2>
+                  <p>扩展任务由当前激活的 BOSS 标签页执行，完成后写入候选人库、动作队列和审计日志。</p>
                 </div>
                 <ClipboardList size={20} />
               </div>
