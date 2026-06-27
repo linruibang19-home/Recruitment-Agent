@@ -773,6 +773,15 @@ p {
   text-align: right;
 }
 
+.section-band-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  align-items: center;
+}
+
 .agent-chain {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -897,6 +906,17 @@ p {
   color: #49636c;
   font-size: 13px;
   line-height: 20px;
+}
+
+.pipeline-drift {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
 }
 
 .pipeline-card-meta {

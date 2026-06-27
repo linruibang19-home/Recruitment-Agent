@@ -5,6 +5,7 @@ import type {
   Candidate,
   CandidateDeleteResult,
   CandidatePipelineSummary,
+  CandidatePipelineSyncResult,
   ChatLoopStatus,
   CandidateDetail,
   ExtensionCommand,
@@ -148,6 +149,10 @@ export function stopAllExtensionCommands(): Promise<{ stopped_count: number }> {
 
 export function fetchCandidateDetail(candidateId: number): Promise<CandidateDetail> {
   return request<CandidateDetail>(`/candidates/${candidateId}/detail`);
+}
+
+export function syncCandidatePipeline(limit = 200): Promise<CandidatePipelineSyncResult> {
+  return request<CandidatePipelineSyncResult>(`/candidates/pipeline/sync?limit=${limit}`, { method: "POST" });
 }
 
 export function deleteCandidate(candidateId: number): Promise<CandidateDeleteResult> {

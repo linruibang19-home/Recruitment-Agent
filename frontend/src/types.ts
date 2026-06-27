@@ -186,6 +186,8 @@ export type CandidatePipelineItem = {
   best_score?: number | null;
   last_interaction_at?: string | null;
   updated_at: string;
+  expected_status: string;
+  status_drift: boolean;
 };
 
 export type CandidatePipelineSummary = {
@@ -196,7 +198,19 @@ export type CandidatePipelineSummary = {
   parsed: number;
   scored: number;
   pending_review: number;
+  drift_count: number;
   items: CandidatePipelineItem[];
+};
+
+export type CandidatePipelineSyncResult = {
+  scanned: number;
+  updated: number;
+  changes: Array<{
+    candidate_id: number;
+    from_status: string;
+    to_status: string;
+    stage: string;
+  }>;
 };
 
 export type CandidateProfile = {

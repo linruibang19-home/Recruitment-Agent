@@ -73,6 +73,8 @@ class CandidatePipelineItem(BaseModel):
     best_score: float | None = None
     last_interaction_at: datetime | None = None
     updated_at: datetime
+    expected_status: str
+    status_drift: bool
 
 
 class CandidatePipelineSummary(BaseModel):
@@ -83,4 +85,18 @@ class CandidatePipelineSummary(BaseModel):
     parsed: int
     scored: int
     pending_review: int
+    drift_count: int
     items: list[CandidatePipelineItem]
+
+
+class CandidatePipelineSyncChange(BaseModel):
+    candidate_id: int
+    from_status: str
+    to_status: str
+    stage: str
+
+
+class CandidatePipelineSyncRead(BaseModel):
+    scanned: int
+    updated: int
+    changes: list[CandidatePipelineSyncChange]

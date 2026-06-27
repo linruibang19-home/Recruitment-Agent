@@ -427,3 +427,34 @@ python -m alembic -c alembic.ini upgrade head
 - Codex Chrome 插件包已安装。
 - 当前 Chrome Profile 缺少 Codex Chrome Extension，native host 也未注册。
 - 需要从 Codex 插件管理重装 `chrome` 插件后再复测扩展连接。
+
+## Phase 10 Status
+
+状态：完成候选人流程状态机和 BOSS 流程页增强。
+
+完成内容：
+
+- 新增候选人流程状态服务 `candidate_pipeline`，统一推导候选人当前阶段、下一步动作和期望数据库状态。
+- `/api/candidates/pipeline` 返回 `expected_status`、`status_drift` 和 `drift_count`，用于识别候选人库状态与流程状态不一致的问题。
+- 新增 `POST /api/candidates/pipeline/sync`，可按流程规则批量同步候选人 `status`。
+- BOSS 流程页新增“同步流程状态”按钮，显示流程状态是否一致，并在候选人卡片上标记状态漂移。
+- BOSS 流程页已分为业务流程层、执行控制层和底层日志层。
+- 底层执行记录支持分页、点击查看 payload/result/错误信息/时间线。
+
+新增 API：
+
+- `GET /api/candidates/pipeline`
+- `POST /api/candidates/pipeline/sync`
+
+自检结果：
+
+- `pytest -q`: 23 项通过。
+- `npm run build`: 通过。
+- `POST /api/candidates/pipeline/sync?limit=5`: 成功扫描并修正状态漂移。
+- Playwright 使用本机 Chrome 验证 BOSS 流程页：同步按钮可点击、页面刷新为流程状态一致、无控制台错误。
+
+下一阶段：
+
+- 将状态机同步更深入地接入简历解析、评分、推荐和待确认动作创建后的服务事件。
+- 扩展端继续增强 BOSS 页面选择器兼容性、弹窗恢复和附件下载稳定性。
+- 系统设置增加批次大小、固定话术、每日推荐时间和 OCR/LLM 策略配置。

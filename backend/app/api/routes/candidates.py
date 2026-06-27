@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.models import ActionQueueItem, Candidate, Interaction, Resume, Score
+from app.db.models import Candidate
 from app.db.repositories import candidates as candidate_repo
 from app.db.repositories import audit_logs as audit_repo
 from app.db.session import get_db
@@ -16,35 +16,16 @@ from app.schemas.candidates import (
     CandidateDeleteResult,
     CandidatePipelineItem,
     CandidatePipelineSummary,
+    CandidatePipelineSyncRead,
     CandidateRead,
     CandidateUpdate,
 )
 from app.schemas.common import PageResponse
+from app.services.candidate_pipeline import load_pipeline_snapshots, sync_candidate_pipeline_statuses
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_RESUME_DIR = PROJECT_ROOT / "data" / "resumes"
-
-
-def _pipeline_stage(
-    candidate: Candidate,
-    *,
-    resume_count: int,
-    parsed_resume_count: int,
-    best_score: float | None,
-    pending_action_count: int,
-) -> tuple[str, str, str]:
-    if pending_action_count:
-        return "pending_review", "待人工确认", "处理待确认动作"
-    if best_score is not None:
-        return "scored", "已评分", "等待每日推荐或人工筛选"
-    if parsed_resume_count:
-        return "parsed", "已解析", "执行岗位匹配评分"
-    if resume_count:
-        return "resume_received", "已收到简历", "解析简历并生成候选人画像"
-    if candidate.status == "resume_requested":
-        return "resume_requested", "已索要简历", "等待候选人发送简历"
-    return "discovered", "已发现", "读取沟通并索要 PDF 简历"
 
 
 @router.get("", response_model=PageResponse[CandidateRead])
@@ -88,42 +69,11 @@ def candidate_pipeline(
             parsed=0,
             scored=0,
             pending_review=0,
+            drift_count=0,
             items=[],
         )
 
-    resume_rows = db.execute(
-        select(
-            Resume.candidate_id,
-            func.count(Resume.id),
-            func.count(Resume.id).filter(Resume.parse_status == "ok"),
-        )
-        .where(Resume.candidate_id.in_(ids))
-        .group_by(Resume.candidate_id)
-    ).all()
-    score_rows = db.execute(
-        select(Score.candidate_id, func.max(Score.total_score))
-        .where(Score.candidate_id.in_(ids))
-        .group_by(Score.candidate_id)
-    ).all()
-    action_rows = db.execute(
-        select(ActionQueueItem.candidate_id, func.count(ActionQueueItem.id))
-        .where(
-            ActionQueueItem.candidate_id.in_(ids),
-            ActionQueueItem.status == "pending",
-        )
-        .group_by(ActionQueueItem.candidate_id)
-    ).all()
-    message_rows = db.execute(
-        select(Interaction.candidate_id, func.count(Interaction.id), func.max(Interaction.occurred_at))
-        .where(Interaction.candidate_id.in_(ids))
-        .group_by(Interaction.candidate_id)
-    ).all()
-
-    resume_map = {int(row[0]): (int(row[1]), int(row[2])) for row in resume_rows}
-    score_map = {int(row[0]): float(row[1]) for row in score_rows if row[1] is not None}
-    action_map = {int(row[0]): int(row[1]) for row in action_rows}
-    message_map = {int(row[0]): (int(row[1]), row[2]) for row in message_rows}
-
+    snapshots = load_pipeline_snapshots(db, candidates)
     items: list[CandidatePipelineItem] = []
     counts = {
         "discovered": 0,
@@ -133,39 +83,42 @@ def candidate_pipeline(
         "scored": 0,
         "pending_review": 0,
     }
+    drift_count = 0
     for candidate in candidates:
-        resume_count, parsed_resume_count = resume_map.get(candidate.id, (0, 0))
-        best_score = score_map.get(candidate.id)
-        pending_action_count = action_map.get(candidate.id, 0)
-        message_count, last_interaction_at = message_map.get(candidate.id, (0, None))
-        stage, stage_label, next_action = _pipeline_stage(
-            candidate,
-            resume_count=resume_count,
-            parsed_resume_count=parsed_resume_count,
-            best_score=best_score,
-            pending_action_count=pending_action_count,
-        )
-        counts[stage] += 1
+        snapshot = snapshots[candidate.id]
+        counts[snapshot.stage] += 1
+        if snapshot.status_drift:
+            drift_count += 1
         items.append(
             CandidatePipelineItem(
                 candidate_id=candidate.id,
                 name=candidate.name,
                 source=candidate.source,
                 status=candidate.status,
-                stage=stage,
-                stage_label=stage_label,
-                next_action=next_action,
-                has_resume=resume_count > 0,
-                resume_count=resume_count,
-                message_count=message_count,
-                pending_action_count=pending_action_count,
-                best_score=best_score,
-                last_interaction_at=last_interaction_at,
+                stage=snapshot.stage,
+                stage_label=snapshot.stage_label,
+                next_action=snapshot.next_action,
+                has_resume=snapshot.resume_count > 0,
+                resume_count=snapshot.resume_count,
+                message_count=snapshot.message_count,
+                pending_action_count=snapshot.pending_action_count,
+                best_score=snapshot.best_score,
+                last_interaction_at=snapshot.last_interaction_at,
                 updated_at=candidate.updated_at,
+                expected_status=snapshot.expected_status,
+                status_drift=snapshot.status_drift,
             )
         )
 
-    return CandidatePipelineSummary(total=len(items), items=items, **counts)
+    return CandidatePipelineSummary(total=len(items), items=items, drift_count=drift_count, **counts)
+
+
+@router.post("/pipeline/sync", response_model=CandidatePipelineSyncRead)
+def sync_candidate_pipeline(
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> CandidatePipelineSyncRead:
+    return sync_candidate_pipeline_statuses(db, limit=limit)
 
 
 @router.post("", response_model=CandidateRead, status_code=status.HTTP_201_CREATED)

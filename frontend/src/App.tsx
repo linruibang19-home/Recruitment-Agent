@@ -37,6 +37,7 @@ import {
   queueExtensionCommand,
   startChatLoop,
   stopAllExtensionCommands,
+  syncCandidatePipeline,
   retryWorkflow,
   reviewWorkflow,
   uploadResume,
@@ -237,6 +238,11 @@ function PipelineQueue({ items }: { items: CandidatePipelineItem[] }) {
             <span className="pipeline-stage">{item.stage_label}</span>
             <h3>{item.name ?? `候选人 #${item.candidate_id}`}</h3>
             <p>{item.next_action}</p>
+            {item.status_drift && (
+              <small className="pipeline-drift">
+                数据库状态 {statusLabel(item.status)} 将同步为 {statusLabel(item.expected_status)}
+              </small>
+            )}
           </div>
           <dl className="pipeline-card-meta">
             <div>
@@ -405,6 +411,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [automationBusy, setAutomationBusy] = useState<string | null>(null);
   const [automationNotice, setAutomationNotice] = useState<string | null>(null);
+  const [pipelineSyncBusy, setPipelineSyncBusy] = useState(false);
   const [candidateDetail, setCandidateDetail] = useState<CandidateDetail | null>(null);
   const [candidateDetailLoading, setCandidateDetailLoading] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -790,6 +797,24 @@ export function App() {
     }
   }, [loadDashboard]);
 
+  const runPipelineSync = useCallback(async () => {
+    setPipelineSyncBusy(true);
+    setAutomationNotice(null);
+    try {
+      const result = await syncCandidatePipeline();
+      await loadDashboard();
+      setAutomationNotice(
+        result.updated
+          ? `已扫描 ${result.scanned} 位候选人，修正 ${result.updated} 个流程状态。`
+          : `已扫描 ${result.scanned} 位候选人，流程状态无需修正。`
+      );
+    } catch (err) {
+      setAutomationNotice(err instanceof Error ? err.message : "候选人流程同步失败");
+    } finally {
+      setPipelineSyncBusy(false);
+    }
+  }, [loadDashboard]);
+
   const openAuditLog = useCallback(async (entry: AuditLog) => {
     setAuditNotice(null);
     try {
@@ -1067,7 +1092,22 @@ export function App() {
                   <span>业务流程层</span>
                   <strong>候选人状态由数据库驱动，不依赖当前 BOSS 页面停留在哪个聊天。</strong>
                 </div>
-                <small>流程队列会把“下一步该做什么”直接展示出来。</small>
+                <div className="section-band-actions">
+                  <small>
+                    {data?.pipeline.drift_count
+                      ? `${data.pipeline.drift_count} 位候选人存在状态漂移`
+                      : "流程状态一致"}
+                  </small>
+                  <button
+                    className="secondary-button"
+                    disabled={pipelineSyncBusy}
+                    onClick={() => void runPipelineSync()}
+                    type="button"
+                  >
+                    <RefreshCw size={16} />
+                    <span>{pipelineSyncBusy ? "同步中" : "同步流程状态"}</span>
+                  </button>
+                </div>
               </div>
               <div className="agent-chain">
                 {agentChain.map((agent, index) => (
