@@ -137,6 +137,10 @@ export function controlExtensionCommand(
   });
 }
 
+export function stopAllExtensionCommands(): Promise<{ stopped_count: number }> {
+  return request<{ stopped_count: number }>("/extension/commands/stop-all", { method: "POST" });
+}
+
 export function fetchCandidateDetail(candidateId: number): Promise<CandidateDetail> {
   return request<CandidateDetail>(`/candidates/${candidateId}/detail`);
 }

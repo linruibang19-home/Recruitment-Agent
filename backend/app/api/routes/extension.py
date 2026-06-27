@@ -89,6 +89,11 @@ def update_command_control(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/commands/stop-all")
+def stop_all_commands(db: Session = Depends(get_db)) -> dict[str, int]:
+    return extension_service.stop_pending_commands(db)
+
+
 def _get_running_command(db: Session, command_id: int) -> ExtensionCommand:
     command = db.get(ExtensionCommand, command_id)
     if command is None:

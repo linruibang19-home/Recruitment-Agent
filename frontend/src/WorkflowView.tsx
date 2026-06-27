@@ -1,15 +1,12 @@
-import { Check, GitBranch, Play, RefreshCw, RotateCcw, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, GitBranch, RefreshCw, RotateCcw, X } from "lucide-react";
+import { useMemo } from "react";
 
-import type { Candidate, Job, WorkflowRun, WorkflowStartInput } from "./types";
+import type { WorkflowRun } from "./types";
 
 type WorkflowViewProps = {
-  candidates: Candidate[];
-  jobs: Job[];
   runs: WorkflowRun[];
   busy: string | null;
   notice: string | null;
-  onStart: (input: WorkflowStartInput) => void;
   onReview: (runId: number, decision: "approved" | "rejected") => void;
   onRetry: (runId: number) => void;
   onRefresh: () => void;
@@ -55,24 +52,14 @@ const nodeLabels: Record<string, string> = {
 };
 
 export function WorkflowView({
-  candidates,
-  jobs,
   runs,
   busy,
   notice,
-  onStart,
   onReview,
   onRetry,
   onRefresh
 }: WorkflowViewProps) {
-  const [workflowName, setWorkflowName] = useState<WorkflowRun["workflow_name"]>("chat_resume");
-  const [candidateId, setCandidateId] = useState<number | undefined>(candidates[0]?.id);
-  const [jobId, setJobId] = useState<number | undefined>(jobs[0]?.id);
   const selectedRun = useMemo(() => runs[0] ?? null, [runs]);
-
-  const requiresCandidate = workflowName === "chat_resume";
-  const requiresJob = workflowName !== "chat_resume";
-  const canStart = (!requiresCandidate || candidateId) && (!requiresJob || jobId);
 
   return (
     <section className="single-view">
@@ -80,60 +67,14 @@ export function WorkflowView({
       <article className="panel full workflow-launcher">
         <div className="panel-header">
           <div>
-            <h2>启动工作流</h2>
-            <p>每个节点完成后写入 PostgreSQL，涉及消息和约面时暂停等待人工确认。</p>
+            <h2>工作流监控</h2>
+            <p>工作流由真实采集、简历解析和每日推荐自动创建；这里只做监控、人工确认和失败恢复。</p>
           </div>
           <GitBranch size={20} />
         </div>
-        <div className="workflow-controls">
-          <label>
-            <span>流程</span>
-            <select
-              value={workflowName}
-              onChange={(event) => setWorkflowName(event.target.value as WorkflowRun["workflow_name"])}
-            >
-              {Object.entries(workflowLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>候选人</span>
-            <select
-              disabled={!requiresCandidate}
-              value={candidateId ?? ""}
-              onChange={(event) => setCandidateId(Number(event.target.value) || undefined)}
-            >
-              <option value="">请选择</option>
-              {candidates.filter((item) => item.id).map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>岗位</span>
-            <select
-              disabled={!requiresJob}
-              value={jobId ?? ""}
-              onChange={(event) => setJobId(Number(event.target.value) || undefined)}
-            >
-              <option value="">请选择</option>
-              {jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
-            </select>
-          </label>
-          <button
-            className="primary-button"
-            disabled={!canStart || busy === "start"}
-            onClick={() => onStart({
-              workflow_name: workflowName,
-              candidate_id: requiresCandidate ? candidateId : undefined,
-              job_id: requiresJob ? jobId : undefined
-            })}
-            type="button"
-          >
-            <Play size={16} />
-            {busy === "start" ? "启动中" : "启动"}
-          </button>
+        <div className="workflow-readonly-banner">
+          <strong>已关闭手动启动入口</strong>
+          <span>避免数据库候选人与当前 BOSS 聊天页面不一致。后续沟通页流程必须由扩展采集结果触发。</span>
           <button className="icon-button" onClick={onRefresh} title="刷新工作流" type="button">
             <RefreshCw size={16} />
           </button>

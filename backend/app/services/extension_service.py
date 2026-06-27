@@ -108,6 +108,31 @@ def update_command_control(db: Session, command_id: int, control: str) -> Extens
     return command
 
 
+def stop_pending_commands(db: Session, reason: str = "人工停止全部扩展任务") -> dict[str, int]:
+    commands = list(
+        db.scalars(
+            select(ExtensionCommand).where(ExtensionCommand.status.in_(("queued", "running")))
+        )
+    )
+    stopped = 0
+    for command in commands:
+        command.payload = {**(command.payload or {}), "control": "stopped"}
+        command.status = "failed"
+        command.error_message = reason
+        command.completed_at = _now()
+        db.add(command)
+        stopped += 1
+    audit_repo.create_audit_log(
+        db,
+        action_type="extension_commands_stop_all",
+        status="ok",
+        detail=f"已停止 {stopped} 个扩展任务",
+        payload={"stopped_count": stopped, "reason": reason},
+    )
+    db.commit()
+    return {"stopped_count": stopped}
+
+
 def claim_next_command(db: Session, extension_id: str) -> ExtensionCommand | None:
     command = db.scalar(
         select(ExtensionCommand)

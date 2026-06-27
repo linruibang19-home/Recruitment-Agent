@@ -1606,6 +1606,34 @@ p {
   color: #9aa8ad;
 }
 
+.workflow-readonly-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #cfe0e3;
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.workflow-readonly-banner strong,
+.workflow-readonly-banner span {
+  display: block;
+}
+
+.workflow-readonly-banner strong {
+  color: #0f3f43;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.workflow-readonly-banner span {
+  color: #526a73;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .workflow-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);

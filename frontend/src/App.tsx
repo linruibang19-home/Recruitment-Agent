@@ -36,7 +36,7 @@ import {
   pauseChatLoop,
   queueExtensionCommand,
   startChatLoop,
-  startWorkflow,
+  stopAllExtensionCommands,
   retryWorkflow,
   reviewWorkflow,
   uploadResume,
@@ -505,22 +505,6 @@ export function App() {
     talentSalary
   ]);
 
-  const launchWorkflow = useCallback(async (input: Parameters<typeof startWorkflow>[0]) => {
-    setWorkflowBusy("start");
-    setWorkflowNotice(null);
-    try {
-      const run = await startWorkflow(input);
-      await loadDashboard();
-      setWorkflowNotice(
-        `工作流 #${run.id} 已运行到${run.status === "waiting_review" ? "人工确认节点" : "结束状态"}。`
-      );
-    } catch (err) {
-      setWorkflowNotice(err instanceof Error ? err.message : "工作流启动失败");
-    } finally {
-      setWorkflowBusy(null);
-    }
-  }, [loadDashboard]);
-
   const decideWorkflow = useCallback(async (
     runId: number,
     decision: "approved" | "rejected"
@@ -634,6 +618,21 @@ export function App() {
     },
     [activeExtensionCommand, loadDashboard]
   );
+
+  const stopAllAutomationCommands = useCallback(async () => {
+    setAutomationBusy("stop-all");
+    setAutomationNotice(null);
+    try {
+      const result = await stopAllExtensionCommands();
+      await pauseChatLoop();
+      await loadDashboard();
+      setAutomationNotice(`已停止 ${result.stopped_count} 个未完成扩展任务，并暂停自动循环。`);
+    } catch (err) {
+      setAutomationNotice(err instanceof Error ? err.message : "停止任务失败");
+    } finally {
+      setAutomationBusy(null);
+    }
+  }, [loadDashboard]);
 
   const controlChatLoop = useCallback(async (mode: "start" | "pause") => {
     setChatLoopBusy(mode);
@@ -1001,10 +1000,10 @@ export function App() {
                   <button
                     className="secondary-button"
                     disabled={automationBusy !== null || !activeExtensionCommand}
-                    onClick={() => void controlAutomationCommand("stopped")}
+                    onClick={() => void stopAllAutomationCommands()}
                     type="button"
                   >
-                    <span>停止</span>
+                    <span>{automationBusy === "stop-all" ? "停止中" : "停止全部"}</span>
                   </button>
                 </div>
               </div>
@@ -1106,14 +1105,11 @@ export function App() {
         {activeView === "workflows" && (
           <WorkflowView
             busy={workflowBusy}
-            candidates={visibleCandidates}
-            jobs={visibleJobs}
             notice={workflowNotice}
             runs={data?.workflows.items ?? []}
             onRefresh={() => void loadDashboard()}
             onRetry={(runId) => void rerunWorkflow(runId)}
             onReview={(runId, decision) => void decideWorkflow(runId, decision)}
-            onStart={(input) => void launchWorkflow(input)}
           />
         )}
 

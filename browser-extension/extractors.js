@@ -102,7 +102,17 @@
 
   function chatItems() {
     const matched = firstMatchingElements(CHAT_ITEM_SELECTORS);
-    return matched.length ? matched : fallbackChatItems();
+    const items = matched.length ? matched : fallbackChatItems();
+    const seen = new Set();
+    return items.filter((item) => {
+      const rawText = normalizeText(item.textContent);
+      const href = absoluteHref(item) || "";
+      const compactText = rawText.replace(/\d{2}:\d{2}.*/, "").trim();
+      const key = `${href}|${compactText.slice(0, 90)}`;
+      if (!rawText || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function childText(element, selectors) {
@@ -264,6 +274,7 @@
   }
 
   function clickChatByIndex(index) {
+    closeBlockingOverlays();
     const item = chatItems()[index];
     if (!item) return false;
     item.scrollIntoView({ block: "center", inline: "nearest" });
@@ -320,6 +331,27 @@
     }
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     return false;
+  }
+
+  function closeBlockingOverlays() {
+    const candidates = [
+      ...Array.from(document.querySelectorAll("[class*='dialog'] [class*='close'], [class*='modal'] [class*='close'], [class*='drawer'] [class*='close']")),
+      ...Array.from(document.querySelectorAll("button, span, div")).filter((element) => {
+        if (!visibleRect(element)) return false;
+        const rect = element.getBoundingClientRect();
+        const text = normalizeText(element.textContent || element.getAttribute("aria-label"));
+        const closeLike = /^(关闭|×|x)$/i.test(text) || /close/i.test(String(element.className || ""));
+        const inOverlayArea = rect.left > window.innerWidth * 0.45 && rect.top < 160;
+        return closeLike && inOverlayArea;
+      })
+    ];
+    const clicked = new Set();
+    for (const element of candidates.slice(0, 5)) {
+      if (clicked.has(element)) continue;
+      clicked.add(element);
+      element.click();
+    }
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   }
 
   async function enrichAttachmentPreviews(attachments, delayMs = 700) {
@@ -388,6 +420,8 @@
   }
 
   async function sendResumeRequest(message) {
+    closeBlockingOverlays();
+    await new Promise((resolve) => setTimeout(resolve, 120));
     const quickResumeButton = findVisibleByText(["button", "span", "div"], [/^求简历$/, /^姹傜畝鍘?$/]);
     if (quickResumeButton) {
       quickResumeButton.click();
