@@ -50,6 +50,7 @@ import type {
   Candidate,
   CandidateDetail,
   CandidatePipelineItem,
+  ExtensionCommand,
   GreetingQuota,
   Job,
   Metric,
@@ -264,6 +265,70 @@ function PipelineQueue({ items }: { items: CandidatePipelineItem[] }) {
 
 const agentChain = ["沟通采集", "简历解析", "匹配评分", "推荐决策", "审计恢复"];
 
+const EXTENSION_COMMAND_PAGE_SIZE = 5;
+
+function extensionCommandLabel(commandType: ExtensionCommand["command_type"]): string {
+  const labels: Record<ExtensionCommand["command_type"], string> = {
+    scan_chats: "扫描沟通列表",
+    scan_chat_details: "批量读取聊天",
+    request_resumes_batch: "批量索要简历",
+    read_current_chat: "读取当前聊天",
+    scan_talents: "扫描推荐牛人"
+  };
+  return labels[commandType];
+}
+
+function ExtensionCommandDetails({ command }: { command: ExtensionCommand | null }) {
+  if (!command) {
+    return (
+      <aside className="execution-detail-panel empty-detail">
+        <ClipboardList size={22} />
+        <p>点击左侧执行记录查看 payload、执行结果、错误信息和时间线。</p>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="execution-detail-panel">
+      <div className="execution-detail-header">
+        <span className={command.status === "completed" ? "status-pill active" : "status-pill danger"}>
+          {command.status}
+        </span>
+        <h3>#{command.id} {extensionCommandLabel(command.command_type)}</h3>
+        <time>{new Date(command.created_at).toLocaleString("zh-CN")}</time>
+      </div>
+      <dl className="audit-detail-list">
+        <div>
+          <dt>创建时间</dt>
+          <dd>{new Date(command.created_at).toLocaleString("zh-CN")}</dd>
+        </div>
+        <div>
+          <dt>领取时间</dt>
+          <dd>{command.claimed_at ? new Date(command.claimed_at).toLocaleString("zh-CN") : "未领取"}</dd>
+        </div>
+        <div>
+          <dt>完成时间</dt>
+          <dd>{command.completed_at ? new Date(command.completed_at).toLocaleString("zh-CN") : "未完成"}</dd>
+        </div>
+        <div>
+          <dt>错误信息</dt>
+          <dd>{command.error_message ?? "无"}</dd>
+        </div>
+      </dl>
+      <div className="execution-json-grid">
+        <div>
+          <strong>任务参数</strong>
+          <pre className="payload-view">{JSON.stringify(command.payload ?? {}, null, 2)}</pre>
+        </div>
+        <div>
+          <strong>执行结果</strong>
+          <pre className="payload-view">{JSON.stringify(command.result ?? {}, null, 2)}</pre>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function CandidateTable({
   candidates,
   onSelect
@@ -371,6 +436,8 @@ export function App() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditNotice, setAuditNotice] = useState<string | null>(null);
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
+  const [extensionCommandPage, setExtensionCommandPage] = useState(0);
+  const [selectedExtensionCommandId, setSelectedExtensionCommandId] = useState<number | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -644,6 +711,24 @@ export function App() {
     () => data?.extension.recent_commands.find((command) => ["queued", "running"].includes(command.status)) ?? null,
     [data?.extension.recent_commands]
   );
+
+  const extensionCommands = data?.extension.recent_commands ?? [];
+  const extensionCommandPageCount = Math.max(1, Math.ceil(extensionCommands.length / EXTENSION_COMMAND_PAGE_SIZE));
+  const extensionCommandPageIndex = Math.min(extensionCommandPage, extensionCommandPageCount - 1);
+  const pagedExtensionCommands = extensionCommands.slice(
+    extensionCommandPageIndex * EXTENSION_COMMAND_PAGE_SIZE,
+    extensionCommandPageIndex * EXTENSION_COMMAND_PAGE_SIZE + EXTENSION_COMMAND_PAGE_SIZE
+  );
+  const selectedExtensionCommand =
+    pagedExtensionCommands.find((command) => command.id === selectedExtensionCommandId) ??
+    pagedExtensionCommands[0] ??
+    null;
+
+  useEffect(() => {
+    if (extensionCommandPage !== extensionCommandPageIndex) {
+      setExtensionCommandPage(extensionCommandPageIndex);
+    }
+  }, [extensionCommandPage, extensionCommandPageIndex]);
 
   const controlAutomationCommand = useCallback(
     async (control: "running" | "paused" | "stopped") => {
@@ -977,6 +1062,13 @@ export function App() {
                 </div>
                 <Bot size={20} />
               </div>
+              <div className="section-band section-band-primary">
+                <div>
+                  <span>业务流程层</span>
+                  <strong>候选人状态由数据库驱动，不依赖当前 BOSS 页面停留在哪个聊天。</strong>
+                </div>
+                <small>流程队列会把“下一步该做什么”直接展示出来。</small>
+              </div>
               <div className="agent-chain">
                 {agentChain.map((agent, index) => (
                   <span key={agent}>
@@ -984,6 +1076,22 @@ export function App() {
                     {agent} Agent
                   </span>
                 ))}
+              </div>
+              <div className="pipeline-stage-grid">
+                {pipelineStageLabels.map((stage) => (
+                  <div className="pipeline-stage-card" key={stage.key}>
+                    <span>{stage.label}</span>
+                    <strong>{data?.pipeline[stage.key] ?? 0}</strong>
+                  </div>
+                ))}
+              </div>
+              <PipelineQueue items={data?.pipeline.items ?? []} />
+              <div className="section-band">
+                <div>
+                  <span>执行控制层</span>
+                  <strong>控制 Chrome 扩展执行采集或固定索要简历话术。</strong>
+                </div>
+                <small>所有写入动作会进入底层执行记录和审计日志。</small>
               </div>
               <div className="automation-toolbar">
                 <div className={`browser-state state-${data?.extension.connected ? "ready" : "stopped"}`}>
@@ -1069,15 +1177,6 @@ export function App() {
                 </div>
               </div>
               {automationNotice && <div className="automation-notice">{automationNotice}</div>}
-              <div className="pipeline-stage-grid">
-                {pipelineStageLabels.map((stage) => (
-                  <div className="pipeline-stage-card" key={stage.key}>
-                    <span>{stage.label}</span>
-                    <strong>{data?.pipeline[stage.key] ?? 0}</strong>
-                  </div>
-                ))}
-              </div>
-              <PipelineQueue items={data?.pipeline.items ?? []} />
               <div className="loop-control-card">
                 <div>
                   <span className={data?.chatLoop.running ? "status-pill active" : "status-pill"}>
@@ -1135,33 +1234,62 @@ export function App() {
               <div className="panel-header">
                 <div>
                   <h2>底层执行记录</h2>
-                  <p>扩展任务由当前激活的 BOSS 标签页执行，完成后写入候选人库、动作队列和审计日志。</p>
+                  <p>这里是扩展命令日志：记录控制台下发给 BOSS 页面执行的任务、状态、参数、结果和失败原因。</p>
                 </div>
                 <ClipboardList size={20} />
               </div>
+              <div className="section-band">
+                <div>
+                  <span>底层日志层</span>
+                  <strong>用于排查“为什么没动、为什么失败、当前执行到哪一步”。</strong>
+                </div>
+                <small>全局审计请看左侧“审计日志”，这里聚焦 BOSS 扩展任务。</small>
+              </div>
               {data?.extension.recent_commands.length ? (
-                <div className="audit-list">
-                  {data.extension.recent_commands.map((command) => (
-                    <div className="audit-row" key={command.id}>
-                      <span className={`audit-status ${command.status === "completed" ? "ok" : ""}`} />
-                      <div>
-                        <strong>
-                          #{command.id}{" "}
-                          {command.command_type === "scan_chats"
-                            ? "扫描沟通列表"
-                            : command.command_type === "scan_chat_details"
-                              ? "批量读取聊天"
-                            : command.command_type === "request_resumes_batch"
-                              ? "批量索要简历"
-                            : command.command_type === "read_current_chat"
-                              ? "读取当前聊天"
-                              : "扫描推荐牛人"}
-                        </strong>
-                        <small>{command.error_message ?? `状态：${command.status}`}</small>
-                      </div>
-                      <time>{new Date(command.created_at).toLocaleTimeString("zh-CN")}</time>
+                <div className="execution-log-layout">
+                  <div>
+                    <div className="audit-summary">
+                      <strong>共 {extensionCommands.length} 条</strong>
+                      <span>第 {extensionCommandPageIndex + 1} 页，每页 {EXTENSION_COMMAND_PAGE_SIZE} 条</span>
                     </div>
-                  ))}
+                    <div className="audit-list paged">
+                      {pagedExtensionCommands.map((command) => (
+                        <button
+                          className={`audit-row ${selectedExtensionCommand?.id === command.id ? "selected" : ""}`}
+                          key={command.id}
+                          onClick={() => setSelectedExtensionCommandId(command.id)}
+                          type="button"
+                        >
+                          <span className={`audit-status ${command.status === "completed" ? "ok" : ""}`} />
+                          <div>
+                            <strong>#{command.id} {extensionCommandLabel(command.command_type)}</strong>
+                            <small>{command.error_message ?? `状态：${command.status}`}</small>
+                          </div>
+                          <time>{new Date(command.created_at).toLocaleTimeString("zh-CN")}</time>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pagination-bar">
+                      <button
+                        className="secondary-button"
+                        disabled={extensionCommandPageIndex === 0}
+                        onClick={() => setExtensionCommandPage((page) => Math.max(0, page - 1))}
+                        type="button"
+                      >
+                        上一页
+                      </button>
+                      <span>{extensionCommandPageIndex + 1} / {extensionCommandPageCount}</span>
+                      <button
+                        className="secondary-button"
+                        disabled={extensionCommandPageIndex >= extensionCommandPageCount - 1}
+                        onClick={() => setExtensionCommandPage((page) => Math.min(extensionCommandPageCount - 1, page + 1))}
+                        type="button"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                  <ExtensionCommandDetails command={selectedExtensionCommand} />
                 </div>
               ) : (
                 <div className="empty-state">
