@@ -27,8 +27,11 @@ async function api(path, init = {}) {
 }
 
 async function activeBossTab() {
-  const tabs = await chrome.tabs.query({ url: "https://www.zhipin.com/*" });
-  const candidates = tabs.filter((tab) => tab.id && tab.url?.startsWith("https://www.zhipin.com/"));
+  const tabs = await chrome.tabs.query({ url: ["https://www.zhipin.com/*", "https://zhipin.com/*"] });
+  const candidates = tabs.filter((tab) => (
+    tab.id &&
+    (tab.url?.startsWith("https://www.zhipin.com/") || tab.url?.startsWith("https://zhipin.com/"))
+  ));
   return candidates.sort((left, right) => {
     if (left.active !== right.active) return left.active ? -1 : 1;
     return Number(right.lastAccessed || 0) - Number(left.lastAccessed || 0);
@@ -45,12 +48,30 @@ function sendToTab(tabId, message) {
   });
 }
 
+async function ensureContentScript(tabId) {
+  try {
+    await sendToTab(tabId, { type: "page_status" });
+    return;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("Receiving end does not exist") && !message.includes("Could not establish connection")) {
+      throw error;
+    }
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["extractors.js", "content.js"]
+  });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+}
+
 async function heartbeat() {
   const extensionId = await getExtensionId();
   const tab = await activeBossTab();
   let page = { page_url: null, page_title: null, page_type: "unsupported" };
   if (tab) {
     try {
+      await ensureContentScript(tab.id);
       page = await sendToTab(tab.id, { type: "page_status" });
     } catch {
       page = { page_url: tab.url, page_title: tab.title, page_type: "unsupported" };
@@ -142,6 +163,7 @@ async function poll() {
     return;
   }
   try {
+    await ensureContentScript(tab.id);
     const response = await sendToTab(tab.id, { type: "run_command", command });
     if (!response?.ok) throw new Error(response?.error || "页面采集失败");
     const completed = await api(`/commands/${command.id}/complete`, {
