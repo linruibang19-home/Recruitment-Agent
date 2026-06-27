@@ -40,6 +40,7 @@ import {
   syncCandidatePipeline,
   retryWorkflow,
   reviewWorkflow,
+  updateAutomationSettings,
   uploadResume,
   type DashboardData
 } from "./api";
@@ -48,6 +49,7 @@ import { WorkflowView } from "./WorkflowView";
 import type {
   ActionQueueEntry,
   AuditLog,
+  AutomationSettings,
   Candidate,
   CandidateDetail,
   CandidatePipelineItem,
@@ -273,6 +275,21 @@ const agentChain = ["沟通采集", "简历解析", "匹配评分", "推荐决�
 
 const EXTENSION_COMMAND_PAGE_SIZE = 5;
 
+function settingsDraftFromData(settings: AutomationSettings): Record<keyof AutomationSettings, string> {
+  return {
+    resume_request_message: settings.resume_request_message,
+    chat_loop_batch_limit: String(settings.chat_loop_batch_limit),
+    chat_loop_min_gap_minutes: String(settings.chat_loop_min_gap_minutes),
+    chat_loop_max_gap_minutes: String(settings.chat_loop_max_gap_minutes),
+    chat_loop_min_delay_ms: String(settings.chat_loop_min_delay_ms),
+    chat_loop_max_delay_ms: String(settings.chat_loop_max_delay_ms),
+    max_daily_greetings: String(settings.max_daily_greetings),
+    recommendation_hour: String(settings.recommendation_hour),
+    recommendation_top_n: String(settings.recommendation_top_n),
+    interview_invite_score_threshold: String(settings.interview_invite_score_threshold)
+  };
+}
+
 function extensionCommandLabel(commandType: ExtensionCommand["command_type"]): string {
   const labels: Record<ExtensionCommand["command_type"], string> = {
     scan_chats: "扫描沟通列表",
@@ -445,6 +462,9 @@ export function App() {
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLog | null>(null);
   const [extensionCommandPage, setExtensionCommandPage] = useState(0);
   const [selectedExtensionCommandId, setSelectedExtensionCommandId] = useState<number | null>(null);
+  const [settingsDraft, setSettingsDraft] = useState<Record<keyof AutomationSettings, string> | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -461,6 +481,12 @@ export function App() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (data?.automationSettings) {
+      setSettingsDraft(settingsDraftFromData(data.automationSettings));
+    }
+  }, [data?.automationSettings]);
 
   const loadAuditLogs = useCallback(async () => {
     setAuditLoading(true);
@@ -687,20 +713,21 @@ export function App() {
             action,
             action === "request_resumes_batch"
               ? {
-                  limit: 20,
-                  delay_ms: 1800,
+                  limit: data?.automationSettings.chat_loop_batch_limit ?? 20,
+                  delay_ms: data?.automationSettings.chat_loop_min_delay_ms ?? 1800,
                   only_unread: true,
-                  message: "方便发一份你的简历过来吗？"
+                  message: data?.automationSettings.resume_request_message ?? "方便发一份你的简历过来吗？"
                 }
               : { limit: 30, delay_ms: 1400 }
           );
+          const batchLimit = data?.automationSettings.chat_loop_batch_limit ?? 20;
           setAutomationNotice(
             action === "scan_chats"
               ? `沟通列表扫描任务 #${command.id} 已提交。`
               : action === "scan_chat_details"
                 ? `批量读取聊天任务 #${command.id} 已提交；扩展会逐个打开左侧会话并写入候选人库。`
                 : action === "request_resumes_batch"
-                  ? `批量索要简历任务 #${command.id} 已提交；本批最多处理 20 个未读会话，可暂停、继续或停止。`
+                  ? `批量索要简历任务 #${command.id} 已提交；本批最多处理 ${batchLimit} 个未读会话，可暂停、继续或停止。`
                   : `当前聊天读取任务 #${command.id} 已提交，结果会写入候选人库并生成待确认草稿。`
           );
         }
@@ -711,8 +738,38 @@ export function App() {
         setAutomationBusy(null);
       }
     },
-    [loadDashboard]
+    [data?.automationSettings, loadDashboard]
   );
+
+  const saveSettings = useCallback(async () => {
+    if (!settingsDraft) {
+      return;
+    }
+    setSettingsBusy(true);
+    setSettingsNotice(null);
+    try {
+      const payload: Partial<AutomationSettings> = {
+        resume_request_message: settingsDraft.resume_request_message.trim(),
+        chat_loop_batch_limit: Number(settingsDraft.chat_loop_batch_limit),
+        chat_loop_min_gap_minutes: Number(settingsDraft.chat_loop_min_gap_minutes),
+        chat_loop_max_gap_minutes: Number(settingsDraft.chat_loop_max_gap_minutes),
+        chat_loop_min_delay_ms: Number(settingsDraft.chat_loop_min_delay_ms),
+        chat_loop_max_delay_ms: Number(settingsDraft.chat_loop_max_delay_ms),
+        max_daily_greetings: Number(settingsDraft.max_daily_greetings),
+        recommendation_hour: Number(settingsDraft.recommendation_hour),
+        recommendation_top_n: Number(settingsDraft.recommendation_top_n),
+        interview_invite_score_threshold: Number(settingsDraft.interview_invite_score_threshold)
+      };
+      const saved = await updateAutomationSettings(payload);
+      setSettingsDraft(settingsDraftFromData(saved));
+      await loadDashboard();
+      setSettingsNotice("采集、额度和推荐配置已保存；推荐定时时间在后端重启后按新小时注册。");
+    } catch (err) {
+      setSettingsNotice(err instanceof Error ? err.message : "系统设置保存失败");
+    } finally {
+      setSettingsBusy(false);
+    }
+  }, [loadDashboard, settingsDraft]);
 
   const activeExtensionCommand = useMemo(
     () => data?.extension.recent_commands.find((command) => ["queued", "running"].includes(command.status)) ?? null,
@@ -1224,7 +1281,10 @@ export function App() {
                   </span>
                   <h3>未读新招呼循环索要简历</h3>
                   <p>
-                    每批最多处理 20 个未读/红点会话，实际发送后计入每日 50 次额度；批次之间使用随机间隔。
+                    每批最多处理 {data?.automationSettings.chat_loop_batch_limit ?? 20} 个未读/红点会话，
+                    实际发送后计入每日 {data?.automationSettings.max_daily_greetings ?? 50} 次额度；
+                    批次之间使用 {data?.automationSettings.chat_loop_min_gap_minutes ?? 8}-
+                    {data?.automationSettings.chat_loop_max_gap_minutes ?? 18} 分钟随机间隔。
                   </p>
                 </div>
                 <dl className="loop-meta">
@@ -1530,36 +1590,163 @@ export function App() {
               <div className="settings-heading">
                 <div>
                   <h2>采集与发送策略</h2>
-                  <p>批量任务可暂停、继续和停止，发送行为只使用固定话术。</p>
+                  <p>控制批量索要简历、每日额度、推荐数量和约面阈值。</p>
                 </div>
                 <ShieldCheck size={19} />
               </div>
-              <dl className="settings-list">
-                <div>
-                  <dt>沟通页批量处理</dt>
-                  <dd>每批最多 20 个未读会话</dd>
+              {settingsDraft ? (
+                <div className="settings-form">
+                  <label className="settings-field wide">
+                    <span>固定索要简历话术</span>
+                    <textarea
+                      maxLength={200}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        resume_request_message: event.target.value
+                      })}
+                      value={settingsDraft.resume_request_message}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>每批会话数</span>
+                    <input
+                      max={20}
+                      min={1}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        chat_loop_batch_limit: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.chat_loop_batch_limit}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>每日主动触达上限</span>
+                    <input
+                      max={150}
+                      min={1}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        max_daily_greetings: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.max_daily_greetings}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>批次最小间隔（分钟）</span>
+                    <input
+                      max={120}
+                      min={1}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        chat_loop_min_gap_minutes: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.chat_loop_min_gap_minutes}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>批次最大间隔（分钟）</span>
+                    <input
+                      max={180}
+                      min={1}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        chat_loop_max_gap_minutes: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.chat_loop_max_gap_minutes}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>单人最小间隔（毫秒）</span>
+                    <input
+                      max={10000}
+                      min={500}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        chat_loop_min_delay_ms: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.chat_loop_min_delay_ms}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>单人最大间隔（毫秒）</span>
+                    <input
+                      max={20000}
+                      min={500}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        chat_loop_max_delay_ms: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.chat_loop_max_delay_ms}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>每日推荐数量</span>
+                    <input
+                      max={20}
+                      min={1}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        recommendation_top_n: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.recommendation_top_n}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>约面草稿分数线</span>
+                    <input
+                      max={100}
+                      min={0}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        interview_invite_score_threshold: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.interview_invite_score_threshold}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>推荐生成小时</span>
+                    <input
+                      max={23}
+                      min={0}
+                      onChange={(event) => setSettingsDraft((current) => current && {
+                        ...current,
+                        recommendation_hour: event.target.value
+                      })}
+                      type="number"
+                      value={settingsDraft.recommendation_hour}
+                    />
+                  </label>
+                  <div className="settings-form-footer">
+                    <button
+                      className="secondary-button"
+                      disabled={settingsBusy || !data?.automationSettings}
+                      onClick={() => data?.automationSettings && setSettingsDraft(settingsDraftFromData(data.automationSettings))}
+                      type="button"
+                    >
+                      重置
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={settingsBusy}
+                      onClick={() => void saveSettings()}
+                      type="button"
+                    >
+                      {settingsBusy ? "保存中" : "保存策略"}
+                    </button>
+                  </div>
+                  {settingsNotice && <div className="automation-notice">{settingsNotice}</div>}
                 </div>
-                <div>
-                  <dt>索要简历话术</dt>
-                  <dd>固定常用语</dd>
-                </div>
-                <div>
-                  <dt>推荐牛人触达上限</dt>
-                  <dd>50 次</dd>
-                </div>
-                <div>
-                  <dt>验证码或账号异常</dt>
-                  <dd>立即停止</dd>
-                </div>
-                <div>
-                  <dt>约面及发送动作</dt>
-                  <dd>人工确认</dd>
-                </div>
-                <div>
-                  <dt>审计日志敏感信息</dt>
-                  <dd>自动脱敏</dd>
-                </div>
-              </dl>
+              ) : (
+                <div className="empty-state compact">正在读取采集策略...</div>
+              )}
             </article>
 
             <article className="settings-section full">

@@ -4,12 +4,12 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.db.models import Candidate, Job, Score
 from app.db.repositories import recommendations as repo
 from app.schemas.recommendations import RecommendationItemRead, RecommendationRunRead
 from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.services.message_generator import generate_interview_invite
+from app.services.runtime_settings import load_automation_settings
 
 
 def _recommendation_reason(score: Score) -> str:
@@ -34,7 +34,8 @@ def generate_daily_recommendations(
     top_n: int | None = None,
     create_interview_drafts: bool = True,
 ) -> RecommendationRunRead:
-    limit = top_n or settings.recommendation_top_n
+    automation_settings = load_automation_settings()
+    limit = top_n or automation_settings.recommendation_top_n
     jobs = repo.list_active_jobs(db, job_id)
     items: list[RecommendationItemRead] = []
     drafts_created = 0
@@ -52,7 +53,7 @@ def generate_daily_recommendations(
             action = None
             if (
                 create_interview_drafts
-                and float(score.total_score) >= settings.interview_invite_score_threshold
+                and float(score.total_score) >= automation_settings.interview_invite_score_threshold
             ):
                 action, created = repo.get_or_create_interview_action(
                     db,

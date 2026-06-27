@@ -429,6 +429,66 @@ p {
   text-align: left;
 }
 
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.settings-field.wide {
+  grid-column: 1 / -1;
+}
+
+.settings-field span {
+  color: #667985;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.settings-field input,
+.settings-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbdde1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17252b;
+  font: inherit;
+  font-size: 14px;
+}
+
+.settings-field input {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.settings-field textarea {
+  min-height: 86px;
+  resize: vertical;
+  padding: 11px 12px;
+  line-height: 22px;
+}
+
+.settings-field input:focus,
+.settings-field textarea:focus {
+  border-color: #0f766e;
+  outline: 2px solid rgba(20, 184, 166, 0.16);
+}
+
+.settings-form-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
 .value-ok {
   color: #0f766e !important;
 }
@@ -2184,9 +2244,15 @@ p {
   .settings-layout,
   .settings-list.horizontal,
   .settings-table-list,
+  .settings-form,
   .candidate-detail-grid,
   .resume-upload {
     grid-template-columns: 1fr;
+  }
+
+  .settings-field.wide,
+  .settings-form-footer {
+    grid-column: auto;
   }
 
   .profile-summary-grid,

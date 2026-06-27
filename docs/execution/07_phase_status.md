@@ -1,5 +1,35 @@
 # 07 Phase Status
 
+## Phase 11 Status
+
+状态：完成运行策略配置中心和系统设置产品化。
+
+完成内容：
+
+- 新增 `GET /api/settings/automation` 和 `PUT /api/settings/automation`，统一管理批量索要简历话术、每批会话数、每日主动触达额度、批次随机间隔、每日推荐数量、推荐生成小时和约面草稿分数线。
+- 后端 `scheduler`、`extension_service`、`quota`、`recommendation_service` 已改为读取运行策略配置，减少前端展示和后端执行不一致的问题。
+- 系统设置页从只读说明升级为可编辑表单，可保存采集与发送策略。
+- BOSS 流程页的自动循环说明改为显示当前配置值。
+- 运行配置写入 `data/runtime/automation_settings.json`，属于本地运行数据，不纳入 git。
+
+新增 API：
+
+- `GET /api/settings/automation`
+- `PUT /api/settings/automation`
+
+自检结果：
+
+- `python -m compileall -q backend`: 通过。
+- `PYTHONPATH=backend pytest -q`: 25 项通过。
+- `npm run build`: 通过。
+- `GET /api/settings/automation`: 服务重启后返回 200，UTF-8 内容正常。
+- Playwright 使用本机 Chrome 验证系统设置页：可打开、可保存策略、桌面/移动截图正常、控制台无错误或警告。
+
+下一阶段：
+
+- 继续基于真实 BOSS 页面日志增强扩展端选择器兼容性、弹窗恢复和附件下载稳定性。
+- 将 OCR/LLM 策略从展示状态进一步扩展为可选解析模式，例如“PDF 原文优先 / OCR 强制 / LLM 增强画像”。
+
 ## Phase 10 Status
 
 状态：完成。
@@ -457,6 +487,5 @@ python -m alembic -c alembic.ini upgrade head
 
 下一阶段：
 
-- 将状态机同步更深入地接入简历解析、评分、推荐和待确认动作创建后的服务事件。
+- 已进入 Phase 11：系统设置增加批次大小、固定话术、每日推荐时间等运行策略配置。
 - 扩展端继续增强 BOSS 页面选择器兼容性、弹窗恢复和附件下载稳定性。
-- 系统设置增加批次大小、固定话术、每日推荐时间和 OCR/LLM 策略配置。

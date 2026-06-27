@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.db.models import ActionQueueItem, DailyQuota
 from app.schemas.talents import GreetingQuotaRead
+from app.services.runtime_settings import load_automation_settings
 
 
 QUOTA_TYPE = "boss_greeting"
@@ -29,7 +29,7 @@ def get_or_create_greeting_quota(db: Session, quota_date: date | None = None) ->
         quota_date=target_date,
         quota_type=QUOTA_TYPE,
         used_count=0,
-        max_count=settings.max_daily_greetings,
+        max_count=load_automation_settings().max_daily_greetings,
     )
     db.add(quota)
     db.flush()

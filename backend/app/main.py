@@ -11,6 +11,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
 from app.api.routes.recommendations import router as recommendations_router
 from app.api.routes.resumes import router as resumes_router
+from app.api.routes.settings import router as settings_router
 from app.api.routes.talents import router as talents_router
 from app.api.routes.workflows import router as workflows_router
 from app.core.config import settings
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(automation_router, prefix="/api")
     app.include_router(workflows_router, prefix="/api")
     app.include_router(extension_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
     return app
 
 

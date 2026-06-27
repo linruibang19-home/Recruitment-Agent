@@ -7,17 +7,16 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.db.models import ExtensionCommand
 from app.db.repositories import audit_logs as audit_repo
 from app.db.session import SessionLocal
 from app.services import extension_service
 from app.services.recommendation_service import generate_daily_recommendations
 from app.services.quota import greeting_quota_status
+from app.services.runtime_settings import load_automation_settings
 
 
 SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
-CHAT_LOOP_MESSAGE = "方便发一份你的简历过来吗？"
 
 _chat_loop_state = {
     "enabled": False,
@@ -34,7 +33,7 @@ def _run_daily_recommendation() -> None:
             result = generate_daily_recommendations(
                 db,
                 recommendation_date=date.today(),
-                top_n=settings.recommendation_top_n,
+                top_n=load_automation_settings().recommendation_top_n,
                 create_interview_drafts=True,
             )
             audit_repo.create_audit_log(
@@ -62,8 +61,9 @@ def _now_local() -> datetime:
 
 
 def _next_gap() -> timedelta:
-    minimum = max(1, settings.chat_loop_min_gap_minutes)
-    maximum = max(minimum, settings.chat_loop_max_gap_minutes)
+    automation_settings = load_automation_settings()
+    minimum = max(1, automation_settings.chat_loop_min_gap_minutes)
+    maximum = max(minimum, automation_settings.chat_loop_max_gap_minutes)
     return timedelta(minutes=random.randint(minimum, maximum))
 
 
@@ -131,17 +131,18 @@ def _run_chat_resume_loop() -> None:
                 _chat_loop_state["last_message"] = "已有批量索要任务排队或运行中，暂不创建新批次"
                 _chat_loop_state["next_enqueue_at"] = now + timedelta(minutes=1)
                 return
-            limit = min(settings.chat_loop_batch_limit, quota.available_count)
+            automation_settings = load_automation_settings()
+            limit = min(automation_settings.chat_loop_batch_limit, quota.available_count)
             command = extension_service.create_command(
                 db,
                 command_type="request_resumes_batch",
                 payload={
                     "limit": limit,
                     "delay_ms": random.randint(
-                        settings.chat_loop_min_delay_ms,
-                        settings.chat_loop_max_delay_ms,
+                        automation_settings.chat_loop_min_delay_ms,
+                        automation_settings.chat_loop_max_delay_ms,
                     ),
-                    "message": CHAT_LOOP_MESSAGE,
+                    "message": automation_settings.resume_request_message,
                     "source": "chat_loop",
                 },
             )
@@ -179,7 +180,7 @@ def start_scheduler() -> None:
     scheduler.add_job(
         _run_daily_recommendation,
         trigger="cron",
-        hour=settings.recommendation_hour,
+        hour=load_automation_settings().recommendation_hour,
         minute=0,
         id="daily-recommendation",
         replace_existing=True,

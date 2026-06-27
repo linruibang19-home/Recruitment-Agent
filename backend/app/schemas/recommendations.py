@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class RecommendationGenerateRequest(BaseModel):
     job_id: int | None = None
-    top_n: int = Field(default=5, ge=1, le=20)
+    top_n: int | None = Field(default=None, ge=1, le=20)
     create_interview_drafts: bool = True
 
 

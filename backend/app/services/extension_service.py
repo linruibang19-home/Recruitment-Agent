@@ -20,6 +20,7 @@ from app.schemas.extension import ExtensionHeartbeat
 from app.schemas.talents import TalentCard, TalentFilter
 from app.services.quota import get_or_create_greeting_quota, greeting_quota_status
 from app.services.candidate_pipeline import refresh_candidate_pipeline_status
+from app.services.runtime_settings import load_automation_settings
 from app.services.talent_service import filter_talent_cards, greeting_message
 
 
@@ -66,10 +67,17 @@ def create_command(
     db: Session, *, command_type: str, payload: dict[str, Any]
 ) -> ExtensionCommand:
     if command_type == "request_resumes_batch":
+        automation_settings = load_automation_settings()
         safe_payload = {
             **payload,
-            "limit": min(int(payload.get("limit") or 20), 20),
-            "message": str(payload.get("message") or "方便发一份你的简历过来吗？"),
+            "limit": min(
+                int(payload.get("limit") or automation_settings.chat_loop_batch_limit),
+                automation_settings.chat_loop_batch_limit,
+                20,
+            ),
+            "message": str(
+                payload.get("message") or automation_settings.resume_request_message
+            ),
             "only_unread": True,
             "read_only": False,
             "auto_send": True,

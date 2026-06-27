@@ -322,6 +322,19 @@ export type GreetingQuota = {
   available_count: number;
 };
 
+export type AutomationSettings = {
+  resume_request_message: string;
+  chat_loop_batch_limit: number;
+  chat_loop_min_gap_minutes: number;
+  chat_loop_max_gap_minutes: number;
+  chat_loop_min_delay_ms: number;
+  chat_loop_max_delay_ms: number;
+  max_daily_greetings: number;
+  recommendation_hour: number;
+  recommendation_top_n: number;
+  interview_invite_score_threshold: number;
+};
+
 export type TalentCard = {
   boss_uid: string;
   name: string;
