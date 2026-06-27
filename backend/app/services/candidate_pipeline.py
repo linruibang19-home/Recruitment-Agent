@@ -176,3 +176,14 @@ def sync_candidate_pipeline_statuses(
     if changes:
         db.commit()
     return CandidatePipelineSyncResult(scanned=len(candidates), updated=len(changes), changes=changes)
+
+
+def refresh_candidate_pipeline_status(db: Session, candidate: Candidate) -> bool:
+    db.flush()
+    snapshot = load_pipeline_snapshots(db, [candidate]).get(candidate.id)
+    if snapshot is None or not snapshot.status_drift:
+        return False
+    candidate.status = snapshot.expected_status
+    db.add(candidate)
+    db.flush()
+    return True

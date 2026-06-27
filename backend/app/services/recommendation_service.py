@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.models import Candidate, Job, Score
 from app.db.repositories import recommendations as repo
 from app.schemas.recommendations import RecommendationItemRead, RecommendationRunRead
+from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.services.message_generator import generate_interview_invite
 
 
@@ -63,6 +64,7 @@ def generate_daily_recommendations(
                 drafts_created += int(created)
                 if action.status in ("pending", "approved"):
                     score.candidate.status = "interview_invite_pending"
+                refresh_candidate_pipeline_status(db, score.candidate)
             profile = score.candidate.profile
             items.append(
                 RecommendationItemRead(

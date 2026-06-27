@@ -438,6 +438,7 @@ python -m alembic -c alembic.ini upgrade head
 - `/api/candidates/pipeline` 返回 `expected_status`、`status_drift` 和 `drift_count`，用于识别候选人库状态与流程状态不一致的问题。
 - 新增 `POST /api/candidates/pipeline/sync`，可按流程规则批量同步候选人 `status`。
 - BOSS 流程页新增“同步流程状态”按钮，显示流程状态是否一致，并在候选人卡片上标记状态漂移。
+- 简历解析、候选人重评分、BOSS 沟通采集、推荐牛人草稿、每日推荐草稿、动作审核和工作流审核后会自动刷新候选人流程状态。
 - BOSS 流程页已分为业务流程层、执行控制层和底层日志层。
 - 底层执行记录支持分页、点击查看 payload/result/错误信息/时间线。
 
@@ -451,6 +452,7 @@ python -m alembic -c alembic.ini upgrade head
 - `pytest -q`: 23 项通过。
 - `npm run build`: 通过。
 - `POST /api/candidates/pipeline/sync?limit=5`: 成功扫描并修正状态漂移。
+- 后端事件自动状态同步通过单元测试和服务重启验证。
 - Playwright 使用本机 Chrome 验证 BOSS 流程页：同步按钮可点击、页面刷新为流程状态一致、无控制台错误。
 
 下一阶段：

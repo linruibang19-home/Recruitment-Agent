@@ -19,6 +19,7 @@ from app.db.repositories import talents as talent_repo
 from app.schemas.extension import ExtensionHeartbeat
 from app.schemas.talents import TalentCard, TalentFilter
 from app.services.quota import get_or_create_greeting_quota, greeting_quota_status
+from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.services.talent_service import filter_talent_cards, greeting_message
 
 
@@ -335,6 +336,7 @@ def ingest_chat_result(db: Session, result: dict[str, Any]) -> tuple[int | None,
         candidate.status = "resume_requested"
         if not detail.get("resume_request_sent") and not detail.get("resume_request_already_exists"):
             _ensure_resume_draft(db, candidate)
+    refresh_candidate_pipeline_status(db, candidate)
     db.commit()
     audit_repo.create_audit_log(
         db,
@@ -388,6 +390,7 @@ def ingest_talent_result(
             draft_message=greeting_message(card, job),
             matched_keywords=matched_keywords,
         )
+        refresh_candidate_pipeline_status(db, candidate)
         drafted_count += 1
     db.commit()
     summary = {

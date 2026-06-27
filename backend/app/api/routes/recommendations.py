@@ -17,6 +17,7 @@ from app.schemas.recommendations import (
     RecommendationRunRead,
 )
 from app.schemas.workflows import WorkflowStartRequest
+from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.services.recommendation_service import (
     generate_daily_recommendations,
     read_daily_recommendations,
@@ -152,6 +153,7 @@ def _decide_action(
         action.candidate.status = (
             "interview_invite_pending" if decision == "approved" else "scored"
         )
+        refresh_candidate_pipeline_status(db, action.candidate)
     db.commit()
     db.refresh(action)
     audit_repo.create_audit_log(

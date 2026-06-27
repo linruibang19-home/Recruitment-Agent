@@ -17,6 +17,7 @@ from app.schemas.workflows import WorkflowStartRequest
 from app.services.profiler import generate_candidate_profile
 from app.services.resume_parser import parse_pdf_text
 from app.services.scorer import score_candidate
+from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.services.workflow_service import start_workflow_safely
 
 router = APIRouter(prefix="/candidates", tags=["resumes"])
@@ -62,6 +63,7 @@ def _finish_resume_processing(
             job=job,
             result=score_candidate(candidate, profile, job),
         )
+    refresh_candidate_pipeline_status(db, candidate)
     db.commit()
     db.refresh(resume)
     db.refresh(candidate)
@@ -259,6 +261,7 @@ def rescore_candidate(candidate_id: int, job_id: int, db: Session = Depends(get_
         job=job,
         result=score_candidate(candidate, candidate.profile, job),
     )
+    refresh_candidate_pipeline_status(db, candidate)
     db.commit()
     db.refresh(score)
     audit_repo.create_audit_log(

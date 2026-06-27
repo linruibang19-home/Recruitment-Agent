@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.models import ActionQueueItem, Candidate, Job, WorkflowRun
 from app.db.repositories import audit_logs as audit_repo
 from app.schemas.workflows import WorkflowRunRead, WorkflowStartRequest
+from app.services.candidate_pipeline import refresh_candidate_pipeline_status
 from app.workflows.engine import WORKFLOW_GRAPHS, WORKFLOW_NODES, WorkflowState
 
 
@@ -170,6 +171,7 @@ def review_workflow(
                 action.candidate.status = (
                     "interview_invite_pending" if decision == "approved" else "scored"
                 )
+                refresh_candidate_pipeline_status(db, action.candidate)
         elif action.status != decision:
             raise WorkflowServiceError(f"Action is already {action.status}")
     run.status = "running"
