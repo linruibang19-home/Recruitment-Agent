@@ -340,6 +340,23 @@
     return smartClick(previewButton || element);
   }
 
+  function scrollChatList(direction = "down") {
+    const items = chatItems();
+    const first = items[0];
+    const container = first?.closest?.("[class*='list'], [class*='scroll'], section, aside, main");
+    const target = container && visibleRect(container) ? container : document.scrollingElement || document.documentElement;
+    const before = target.scrollTop;
+    target.scrollBy({
+      top: direction === "up" ? -Math.max(240, target.clientHeight * 0.7) : Math.max(240, target.clientHeight * 0.7),
+      behavior: "instant"
+    });
+    return {
+      before,
+      after: target.scrollTop,
+      moved: before !== target.scrollTop
+    };
+  }
+
   function extractResumePreviewText() {
     const roots = Array.from(document.querySelectorAll(PREVIEW_ROOT_SELECTORS.join(",")))
       .filter((element) => visibleRect(element));
@@ -565,6 +582,7 @@
     extractChatSummaries,
     extractChatDetail,
     clickChatByIndex,
+    scrollChatList,
     enrichAttachmentPreviews,
     sendResumeRequest,
     hasResumeRequestHistory,

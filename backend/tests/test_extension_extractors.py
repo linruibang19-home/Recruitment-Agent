@@ -301,7 +301,7 @@ def test_request_resumes_batch_skips_existing_request() -> None:
             </div>
             <section id="chat" style="position:absolute; left:720px; top:180px; width:600px; height:520px;"></section>
             <textarea style="position:absolute; left:720px; top:740px; width:420px; height:60px;"></textarea>
-            <button style="position:absolute; left:1160px; top:748px;" onclick="window.sentMessages.push(document.querySelector('textarea').value)">
+            <button style="position:absolute; left:1160px; top:748px;" onclick="window.sentMessages.push(document.querySelector('textarea').value); document.querySelector('#chat').insertAdjacentHTML('beforeend', '<div class=&quot;message-item outgoing&quot;>' + document.querySelector('textarea').value + '</div>')">
               发送
             </button>
             <script>
@@ -365,6 +365,97 @@ def test_request_resumes_batch_skips_existing_request() -> None:
         assert batch["sent_count"] == 1
         assert batch["skipped_already_requested"] == 1
         assert batch["failed_count"] == 0
+        assert batch["summary"]["target_count"] == 2
+        assert [item["status"] for item in batch["execution_trace"]] == [
+            "sent",
+            "skipped_already_requested",
+        ]
+    finally:
+        browser.close()
+        playwright.stop()
+
+
+def test_request_resumes_batch_collects_targets_after_scroll() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.set_content(
+            """
+            <div class="chat-list" style="position:absolute; left:320px; top:180px; width:360px; height:120px; overflow:auto;">
+              <button class="chat-item" onclick="selectChat(0)" style="display:block; height:80px;">
+                <span class="name">候选人A</span>
+                <span class="last-msg">普通已读</span>
+              </button>
+              <button class="chat-item" onclick="selectChat(1)" style="display:block; height:80px;">
+                <span class="name">候选人B</span>
+                <span class="unread">1</span>
+                <span class="last-msg">您好，我很感兴趣</span>
+              </button>
+              <button class="chat-item" onclick="selectChat(2)" style="display:block; height:80px;">
+                <span class="name">候选人C</span>
+                <span class="unread">1</span>
+                <span class="last-msg">想投递岗位</span>
+              </button>
+            </div>
+            <section id="chat" style="position:absolute; left:720px; top:180px; width:600px; height:520px;"></section>
+            <textarea style="position:absolute; left:720px; top:740px; width:420px; height:60px;"></textarea>
+            <button style="position:absolute; left:1160px; top:748px;" onclick="window.sentMessages.push(document.querySelector('textarea').value); document.querySelector('#chat').insertAdjacentHTML('beforeend', '<div class=&quot;message-item outgoing&quot;>' + document.querySelector('textarea').value + '</div>')">
+              发送
+            </button>
+            <script>
+              window.sentMessages = [];
+              window.selectChat = (index) => {
+                document.querySelector("#chat").innerHTML = `
+                  <div class="chat-header"><span class="name">候选人${index === 1 ? "B" : "C"}</span></div>
+                  <div class="message-item incoming">您好，我想了解岗位。</div>
+                `;
+              };
+              window.selectChat(1);
+            </script>
+            """
+        )
+        page.evaluate(
+            """
+            () => {
+              window.fetch = async () => ({ ok: true, json: async () => ({ control: "running" }) });
+              window.chrome = {
+                runtime: {
+                  onMessage: { addListener: (fn) => { window.__contentListener = fn; } },
+                  sendMessage: () => ({ catch: () => null })
+                }
+              };
+            }
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        page.add_script_tag(path=str(CONTENT_PATH))
+        result = page.evaluate(
+            """() => new Promise((resolve) => {
+              window.__contentListener({
+                type: "run_command",
+                command: {
+                  id: 11,
+                  command_type: "request_resumes_batch",
+                  payload: {
+                    limit: 2,
+                    delay_ms: 10,
+                    only_unread: true,
+                    message: "方便发一份你的简历过来吗？"
+                  }
+                }
+              }, null, resolve);
+            }).then((response) => ({
+              response,
+              sentMessages: window.sentMessages
+            }))"""
+        )
+        batch = result["response"]["result"]
+        assert batch["summary"]["target_count"] == 2
+        assert batch["sent_count"] == 2
+        assert result["sentMessages"] == [
+            "方便发一份你的简历过来吗？",
+            "方便发一份你的简历过来吗？",
+        ]
     finally:
         browser.close()
         playwright.stop()

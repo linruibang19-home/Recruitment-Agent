@@ -77,41 +77,47 @@ type ViewId =
 
 const navSections: Array<{
   title: string;
-  items: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }>;
+  description: string;
+  items: Array<{ id: ViewId; label: string; step: string; icon: typeof LayoutDashboard }>;
 }> = [
   {
     title: "招聘工作台",
+    description: "每天先看",
     items: [
-      { id: "dashboard", label: "今日概览", icon: LayoutDashboard },
-      { id: "recommendations", label: "每日推荐", icon: Award },
-      { id: "actions", label: "待我确认", icon: ListChecks }
+      { id: "dashboard", label: "今日概览", step: "01", icon: LayoutDashboard },
+      { id: "recommendations", label: "每日推荐", step: "02", icon: Award },
+      { id: "actions", label: "待我确认", step: "03", icon: ListChecks }
     ]
   },
   {
     title: "候选人流程",
+    description: "主业务线",
     items: [
-      { id: "automation", label: "新招呼处理", icon: Bot },
-      { id: "candidates", label: "候选人库", icon: Users },
-      { id: "workflows", label: "流程推进", icon: Workflow }
+      { id: "automation", label: "新招呼处理", step: "04", icon: Bot },
+      { id: "candidates", label: "候选人库", step: "05", icon: Users },
+      { id: "workflows", label: "流程推进", step: "06", icon: Workflow }
     ]
   },
   {
     title: "BOSS 自动化",
+    description: "平台采集",
     items: [
-      { id: "talents", label: "推荐牛人", icon: Search }
+      { id: "talents", label: "推荐牛人", step: "07", icon: Search }
     ]
   },
   {
     title: "岗位与规则",
+    description: "配置标准",
     items: [
-      { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
-      { id: "settings", label: "自动化参数", icon: Settings }
+      { id: "jobs", label: "岗位管理", step: "08", icon: BriefcaseBusiness },
+      { id: "settings", label: "自动化参数", step: "09", icon: Settings }
     ]
   },
   {
     title: "数据与审计",
+    description: "复盘追踪",
     items: [
-      { id: "audit", label: "审计日志", icon: ClipboardList }
+      { id: "audit", label: "审计日志", step: "10", icon: ClipboardList }
     ]
   }
 ];
@@ -945,7 +951,10 @@ export function App() {
         <nav className="nav-list" aria-label="招聘业务流程">
           {navSections.map((section) => (
             <div className="nav-section" key={section.title}>
-              <span className="nav-section-label">{section.title}</span>
+              <span className="nav-section-label">
+                <strong>{section.title}</strong>
+                <small>{section.description}</small>
+              </span>
               <div className="nav-section-items">
                 {section.items.map((item) => (
                   <button
@@ -954,6 +963,7 @@ export function App() {
                     onClick={() => setActiveView(item.id)}
                     type="button"
                   >
+                    <em>{item.step}</em>
                     <item.icon size={18} />
                     <span>{item.label}</span>
                   </button>
@@ -1199,6 +1209,36 @@ export function App() {
                     <span>{pipelineSyncBusy ? "同步中" : "同步流程状态"}</span>
                   </button>
                 </div>
+              </div>
+              <div className="usage-steps">
+                <article>
+                  <strong>1</strong>
+                  <div>
+                    <span>打开 BOSS 沟通页</span>
+                    <small>保持已登录，扩展状态显示“已连接”。</small>
+                  </div>
+                </article>
+                <article>
+                  <strong>2</strong>
+                  <div>
+                    <span>先扫描沟通列表</span>
+                    <small>确认能识别未读红点和候选人姓名。</small>
+                  </div>
+                </article>
+                <article>
+                  <strong>3</strong>
+                  <div>
+                    <span>批量索要简历</span>
+                    <small>每批按系统设置处理未读会话，可暂停、继续、停止。</small>
+                  </div>
+                </article>
+                <article>
+                  <strong>4</strong>
+                  <div>
+                    <span>检查结果与待确认</span>
+                    <small>简历、评分、推荐和异常都进入候选人库与日志。</small>
+                  </div>
+                </article>
               </div>
               <div className="agent-chain">
                 {agentChain.map((agent, index) => (

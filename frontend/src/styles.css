@@ -92,12 +92,24 @@ button:disabled {
 }
 
 .nav-section-label {
+  display: grid;
+  gap: 1px;
   padding: 0 12px 5px;
   color: #7fb0ae;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   line-height: 16px;
+}
+
+.nav-section-label strong {
+  color: #c8efed;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.nav-section-label small {
+  color: #7fb0ae;
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .nav-section-items {
@@ -106,12 +118,13 @@ button:disabled {
 }
 
 .nav-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px 18px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   width: 100%;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -124,6 +137,32 @@ button:disabled {
 .nav-item:hover {
   background: #1c5557;
   color: #ffffff;
+}
+
+.nav-item em {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94c9c6;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.nav-item.active em,
+.nav-item:hover em {
+  background: rgba(20, 184, 166, 0.22);
+  color: #ffffff;
+}
+
+.nav-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace {
@@ -852,6 +891,54 @@ p {
   justify-content: flex-end;
   gap: 10px;
   align-items: center;
+}
+
+.usage-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.usage-steps article {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 82px;
+  padding: 13px;
+  border: 1px solid #d9e7e9;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.usage-steps strong {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e8f7f5;
+  color: #00756f;
+  font-size: 13px;
+}
+
+.usage-steps span,
+.usage-steps small {
+  display: block;
+}
+
+.usage-steps span {
+  color: #17343a;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 20px;
+}
+
+.usage-steps small {
+  margin-top: 3px;
+  color: #667985;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .agent-chain {
