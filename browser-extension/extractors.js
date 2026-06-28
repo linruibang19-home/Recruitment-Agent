@@ -1,24 +1,36 @@
 (function initRecruitmentExtractors(globalScope) {
   const CHAT_ITEM_SELECTORS = [
+    "[data-recruitment-agent-chat-item]",
     ".user-list .user-item",
     ".chat-list .chat-item",
     ".chat-list .friend-item",
     ".friend-list .friend-item",
+    ".chat-user-list [class*='item']",
+    "[class*='user-list'] [class*='item']",
+    "[class*='friend-list'] [class*='item']",
+    "[class*='conversation'] [class*='item']",
     "[class*='chat-list'] [class*='item']",
-    "[data-recruitment-agent-chat-item]"
+    "[class*='chat'] [class*='card']"
   ];
   const MESSAGE_SELECTORS = [
+    "[data-recruitment-agent-message]",
     ".chat-message",
     ".message-item",
     "[class*='message-item']",
-    "[data-recruitment-agent-message]"
+    "[class*='message'] [class*='text']",
+    "[class*='chat'] [class*='bubble']",
+    "[class*='bubble']"
   ];
   const ATTACHMENT_SELECTORS = [
+    "[data-recruitment-agent-attachment]",
     "a[href*='.pdf']",
+    "button:has([class*='file'])",
     "[class*='attachment']",
     "[class*='resume']",
     "[class*='file-card']",
-    "[data-recruitment-agent-attachment]"
+    "[class*='fileCard']",
+    "[class*='file-card'] button",
+    "[class*='resume'] button"
   ];
   const PREVIEW_ROOT_SELECTORS = [
     "[data-recruitment-agent-preview]",
@@ -65,6 +77,27 @@
     return rect;
   }
 
+  function isVisible(element) {
+    return Boolean(element && visibleRect(element));
+  }
+
+  function smartClick(element) {
+    if (!element || !visibleRect(element)) return false;
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+    const rect = element.getBoundingClientRect();
+    const options = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + Math.min(rect.width / 2, Math.max(8, rect.width - 8)),
+      clientY: rect.top + Math.min(rect.height / 2, Math.max(8, rect.height - 8))
+    };
+    for (const type of ["pointerover", "mouseover", "pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+      element.dispatchEvent(new MouseEvent(type, options));
+    }
+    return true;
+  }
+
   function isNestedDuplicate(element, elements) {
     return elements.some((other) => {
       if (other === element || !other.contains(element)) return false;
@@ -82,7 +115,7 @@
       if (!rect) return false;
       const text = normalizeText(element.textContent);
       if (text.length < 8 || text.length > 220) return false;
-      if (/(全部职位|全部 未读|未选中联系人|暂无牛人|在线简历|附件简历|招聘规范)/.test(text)) {
+      if (/(全部职位|全部 未读|未选中联系人|暂无牛人|在线简历|附件简历|招聘规范|我的客服|账号权益|升级VIP)/.test(text)) {
         return false;
       }
       const inLeftPane = rect.left > 180
@@ -173,21 +206,29 @@
     return "unsupported";
   }
 
+  function hasUnreadMarker(item, unreadText) {
+    if (Boolean(item.querySelector(".badge, .unread, [class*='unread'], [class*='badge'], [class*='dot']"))) {
+      return true;
+    }
+    if (/(^|\D)[1-9]\d?($|\D)/.test(unreadText)) return true;
+    return Array.from(item.querySelectorAll("*")).some((child) => {
+      const rect = visibleRect(child);
+      if (!rect || rect.width > 34 || rect.height > 34) return false;
+      const style = window.getComputedStyle(child);
+      const color = `${style.backgroundColor} ${style.color} ${style.borderColor}`;
+      const redLike = /(rgb\(255,\s*|rgb\(244,\s*|rgb\(245,\s*|rgb\(239,\s*|#f|red)/i.test(color);
+      if (!redLike) return false;
+      const text = normalizeText(child.textContent);
+      return !text || /[1-9]\d?/.test(text);
+    });
+  }
+
   function extractChatSummaries(limit = 30) {
     return chatItems().slice(0, limit).flatMap((item, index) => {
       const rawText = normalizeText(item.textContent);
       if (!rawText) return [];
       const unreadText = childText(item, [".badge", ".unread", "[class*='unread']"]) || "";
-      const hasUnreadMarker = Boolean(item.querySelector(".badge, .unread, [class*='unread']"))
-        || /(^|\D)[1-9]\d?($|\D)/.test(unreadText)
-        || Array.from(item.querySelectorAll("*")).some((child) => {
-          const rect = visibleRect(child);
-          if (!rect || rect.width > 32 || rect.height > 32) return false;
-          const style = window.getComputedStyle(child);
-          const color = `${style.backgroundColor} ${style.color} ${style.borderColor}`;
-          return /(rgb\(255,\s*|rgb\(244,\s*|#f|red)/i.test(color)
-            && /[1-9]\d?/.test(normalizeText(child.textContent));
-        });
+      const unread = hasUnreadMarker(item, unreadText);
       const compactText = rawText.replace(/\d{2}:\d{2}.*/, "").trim();
       const fallbackName = compactText
         .replace(/Agent应用开发实习生.*/, "")
@@ -199,7 +240,7 @@
         name: childText(item, [".name", ".user-name", ".friend-name", "[class*='name']"]) || fallbackName || rawText.split(" ")[0],
         preview: childText(item, [".last-msg", ".preview", ".message-text", "[class*='last']"]),
         unread_count: Number((unreadText.match(/\d+/) || ["0"])[0]),
-        has_unread: hasUnreadMarker,
+        has_unread: unread,
         href: absoluteHref(item),
         raw_text: rawText
       }];
@@ -217,6 +258,10 @@
     const nameSelectors = [
       ".chat-header .name",
       ".conversation-header [class*='name']",
+      ".chat-header [class*='title']",
+      "[class*='chat-header'] [class*='name']",
+      "[class*='chat-header'] [class*='title']",
+      "[class*='geek-name']",
       "[data-recruitment-agent-candidate-name]"
     ];
     let candidateName = null;
@@ -233,7 +278,7 @@
       if (/(在线简历|附件简历|求简历|换电话|换微信|约面试|不合适|招聘规范|我的客服)/.test(content)) {
         return false;
       }
-      return rect.left > window.innerWidth * 0.42
+      return rect.left > window.innerWidth * 0.38
         && rect.top > 280
         && rect.bottom < window.innerHeight - 90
         && rect.width > 40
@@ -252,7 +297,7 @@
       const previewText = normalizeText(element.textContent);
       const href = absoluteHref(element);
       const filename = (previewText.match(/[^\\/:*?"<>|\r\n]+\.pdf/i) || href?.match(/[^/?#]+\.pdf/i) || [null])[0];
-      const isResume = filename || /\.pdf/i.test(href || "") || /(附件简历|在线简历|预览附件|简历)/.test(previewText);
+      const isResume = filename || /\.pdf/i.test(href || "") || /(附件简历|在线简历|预览附件|点击预览|简历|PDF)/i.test(previewText);
       if (!isResume) continue;
       const key = `${filename || ""}|${href || ""}|${previewText}`;
       if (seenAttachments.has(key)) continue;
@@ -277,10 +322,8 @@
     closeBlockingOverlays();
     const item = chatItems()[index];
     if (!item) return false;
-    item.scrollIntoView({ block: "center", inline: "nearest" });
-    item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
-    item.click();
-    return true;
+    const clickable = item.matches("button, a, [role='button']") ? item : item.querySelector("button, a, [role='button']") || item;
+    return smartClick(clickable);
   }
 
   function attachmentElements() {
@@ -290,10 +333,11 @@
   function clickAttachmentByIndex(index) {
     const element = attachmentElements()[index];
     if (!element) return false;
-    element.scrollIntoView({ block: "center", inline: "nearest" });
-    element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true, view: window }));
-    element.click();
-    return true;
+    const previewButton = Array.from(element.querySelectorAll?.("button, a, span, div") || []).find((child) => {
+      if (!isVisible(child)) return false;
+      return /(点击预览|预览附件|预览|查看|打开)/.test(normalizeText(child.textContent || child.getAttribute("aria-label")));
+    });
+    return smartClick(previewButton || element);
   }
 
   function extractResumePreviewText() {
@@ -376,20 +420,36 @@
 
   function findVisibleByText(selectors, patterns) {
     const elements = Array.from(document.querySelectorAll(selectors.join(",")));
-    return elements.find((element) => {
+    const matches = elements.filter((element) => {
       if (!visibleRect(element)) return false;
       const text = normalizeText(element.textContent || element.getAttribute("aria-label"));
       return patterns.some((pattern) => pattern.test(text));
-    }) || null;
+    });
+    return matches.sort((left, right) => {
+      const tagPriority = (element) => {
+        const tag = element.tagName.toLowerCase();
+        if (tag === "button" || tag === "a") return 0;
+        if (tag === "li") return 1;
+        if (tag === "span" || tag === "p") return 2;
+        return 3;
+      };
+      const leftRect = left.getBoundingClientRect();
+      const rightRect = right.getBoundingClientRect();
+      return tagPriority(left) - tagPriority(right)
+        || normalizeText(left.textContent).length - normalizeText(right.textContent).length
+        || (leftRect.width * leftRect.height) - (rightRect.width * rightRect.height);
+    })[0] || null;
   }
 
   function findComposer() {
-    const candidates = Array.from(document.querySelectorAll("textarea, input[type='text'], [contenteditable='true']"));
+    const candidates = Array.from(document.querySelectorAll(
+      "textarea, input[type='text'], [contenteditable='true'], [role='textbox']"
+    ));
     return candidates.find((element) => {
       const rect = visibleRect(element);
       if (!rect) return false;
       return rect.top > window.innerHeight * 0.62
-        && rect.left > window.innerWidth * 0.34
+        && rect.left > window.innerWidth * 0.30
         && rect.width > 120
         && rect.height > 14;
     }) || null;
@@ -398,41 +458,54 @@
   function setComposerText(element, message) {
     element.focus();
     if ("value" in element) {
-      element.value = message;
+      const prototype = element instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+      if (setter) setter.call(element, message);
+      else element.value = message;
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
     }
     element.textContent = message;
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true }));
     element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: message }));
     return true;
   }
 
   function clickSendButton() {
-    const button = findVisibleByText(["button", "span", "div"], [/^发送$/, /^鍙戦€?$/]);
+    const button = findVisibleByText(["button", "span", "div"], [/^发送$/, /^發送$/, /^Send$/i]);
     if (!button) return false;
     const disabled = button.matches?.(":disabled")
       || button.getAttribute("aria-disabled") === "true"
       || /disabled|forbid/.test(String(button.className || ""));
     if (disabled) return false;
-    button.click();
-    return true;
+    return smartClick(button);
   }
 
   async function sendResumeRequest(message) {
     closeBlockingOverlays();
     await new Promise((resolve) => setTimeout(resolve, 120));
-    const quickResumeButton = findVisibleByText(["button", "span", "div"], [/^求简历$/, /^姹傜畝鍘?$/]);
-    if (quickResumeButton) {
-      quickResumeButton.click();
+    const quickResumeButton = findVisibleByText(["button", "span", "div"], [
+      /^求简历$/,
+      /^常$/,
+      /^常用语$/,
+      /常用语/,
+      /求简历/
+    ]);
+    if (quickResumeButton && smartClick(quickResumeButton)) {
       await new Promise((resolve) => setTimeout(resolve, 250));
       const phrase = findVisibleByText(["li", "button", "span", "div", "p"], [
         /方便发一份你的简历过来吗/,
-        /鏂逛究鍙戦€佷竴浠?.*绠€鍘?/
+        /发一份.*简历/,
+        /发送.*简历/
       ]);
       if (phrase) {
-        phrase.click();
+        smartClick(phrase);
         await new Promise((resolve) => setTimeout(resolve, 250));
+        const composerAfterPhrase = findComposer();
+        if (composerAfterPhrase) setComposerText(composerAfterPhrase, message);
         if (clickSendButton()) return { sent: true, method: "common_phrase" };
       }
     }

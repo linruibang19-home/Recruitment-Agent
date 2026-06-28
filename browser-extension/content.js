@@ -23,14 +23,45 @@
     }
   }
 
+  function detailMatchesSummary(detail, summary) {
+    const name = String(detail?.candidate_name || "").trim();
+    const summaryName = String(summary?.name || "").trim();
+    if (!summaryName || !name) return true;
+    return name.includes(summaryName) || summaryName.includes(name);
+  }
+
+  async function openChatAndRead(summary, delayMs, retries = 2) {
+    let detail = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      if (!extractors.clickChatByIndex(Number(summary.index))) {
+        return { ok: false, detail: null, reason: "click_failed" };
+      }
+      await sleep(delayMs + attempt * 300);
+      detail = extractors.extractChatDetail();
+      const hasContent = Boolean(detail?.candidate_name || detail?.messages?.length || detail?.attachments?.length);
+      if (hasContent && detailMatchesSummary(detail, summary)) {
+        return { ok: true, detail, reason: null };
+      }
+    }
+    return { ok: Boolean(detail), detail, reason: "detail_not_stable" };
+  }
+
   async function scanChatDetails(limit, delayMs) {
     const conversations = extractors.extractChatSummaries(limit);
     const details = [];
+    const failures = [];
     for (let index = 0; index < conversations.length; index += 1) {
       const summary = conversations[index];
-      if (!extractors.clickChatByIndex(index)) continue;
-      await sleep(delayMs);
-      const detail = extractors.extractChatDetail();
+      const opened = await openChatAndRead(summary, delayMs);
+      if (!opened.ok || !opened.detail) {
+        failures.push({
+          summary,
+          reason: opened.reason || "open_failed",
+          message: "未能稳定读取候选人聊天详情"
+        });
+        continue;
+      }
+      const detail = opened.detail;
       if (detail.attachments?.length) {
         detail.attachments = await extractors.enrichAttachmentPreviews(detail.attachments, Math.max(500, delayMs));
       }
@@ -44,7 +75,8 @@
     return {
       page_url: location.href,
       conversations,
-      details
+      details,
+      failures
     };
   }
 
@@ -79,17 +111,17 @@
           stopped: true
         };
       }
-      if (!extractors.clickChatByIndex(Number(summary.index))) {
+      const opened = await openChatAndRead(summary, delayMs);
+      if (!opened.ok || !opened.detail) {
         failedCount += 1;
         failures.push({
           summary,
-          reason: "click_failed",
-          message: "未能打开候选人会话"
+          reason: opened.reason || "click_failed",
+          message: "未能稳定打开并读取候选人会话"
         });
         continue;
       }
-      await sleep(delayMs);
-      const detail = extractors.extractChatDetail();
+      const detail = opened.detail;
       if (detail.attachments?.length) {
         detail.attachments = await extractors.enrichAttachmentPreviews(detail.attachments, Math.max(500, delayMs));
       }

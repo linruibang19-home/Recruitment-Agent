@@ -75,17 +75,45 @@ type ViewId =
   | "audit"
   | "settings";
 
-const navItems: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }> = [
-  { id: "dashboard", label: "工作台", icon: LayoutDashboard },
-  { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
-  { id: "candidates", label: "候选人库", icon: Users },
-  { id: "talents", label: "推荐牛人", icon: Search },
-  { id: "recommendations", label: "每日推荐", icon: Award },
-  { id: "actions", label: "待确认", icon: ListChecks },
-  { id: "automation", label: "BOSS 流程", icon: Bot },
-  { id: "workflows", label: "工作流", icon: Workflow },
-  { id: "audit", label: "审计日志", icon: ClipboardList },
-  { id: "settings", label: "系统设置", icon: Settings }
+const navSections: Array<{
+  title: string;
+  items: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }>;
+}> = [
+  {
+    title: "招聘工作台",
+    items: [
+      { id: "dashboard", label: "今日概览", icon: LayoutDashboard },
+      { id: "recommendations", label: "每日推荐", icon: Award },
+      { id: "actions", label: "待我确认", icon: ListChecks }
+    ]
+  },
+  {
+    title: "候选人流程",
+    items: [
+      { id: "automation", label: "新招呼处理", icon: Bot },
+      { id: "candidates", label: "候选人库", icon: Users },
+      { id: "workflows", label: "流程推进", icon: Workflow }
+    ]
+  },
+  {
+    title: "BOSS 自动化",
+    items: [
+      { id: "talents", label: "推荐牛人", icon: Search }
+    ]
+  },
+  {
+    title: "岗位与规则",
+    items: [
+      { id: "jobs", label: "岗位管理", icon: BriefcaseBusiness },
+      { id: "settings", label: "自动化参数", icon: Settings }
+    ]
+  },
+  {
+    title: "数据与审计",
+    items: [
+      { id: "audit", label: "审计日志", icon: ClipboardList }
+    ]
+  }
 ];
 
 const databaseTables = [
@@ -914,18 +942,24 @@ export function App() {
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="功能模块">
-          <span className="nav-section-label">功能模块</span>
-          {navItems.map((item) => (
-            <button
-              className={activeView === item.id ? "nav-item active" : "nav-item"}
-              key={item.id}
-              onClick={() => setActiveView(item.id)}
-              type="button"
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </button>
+        <nav className="nav-list" aria-label="招聘业务流程">
+          {navSections.map((section) => (
+            <div className="nav-section" key={section.title}>
+              <span className="nav-section-label">{section.title}</span>
+              <div className="nav-section-items">
+                {section.items.map((item) => (
+                  <button
+                    className={activeView === item.id ? "nav-item active" : "nav-item"}
+                    key={item.id}
+                    onClick={() => setActiveView(item.id)}
+                    type="button"
+                  >
+                    <item.icon size={18} />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </aside>

@@ -77,6 +77,28 @@ def test_clicks_chat_item_by_index() -> None:
         playwright.stop()
 
 
+def test_detects_unread_red_dot_without_number() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_content(
+            """
+            <div class="chat-list">
+              <div class="chat-item">
+                <span class="name">候选人A</span>
+                <span class="last-msg">您好，我想了解岗位</span>
+                <span class="red-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff4d4f;"></span>
+              </div>
+            </div>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate("() => RecruitmentExtractors.extractChatSummaries(10)[0]")
+        assert result["has_unread"] is True
+    finally:
+        browser.close()
+        playwright.stop()
+
+
 def test_fallback_extracts_visible_boss_chat_cards() -> None:
     playwright, browser, page = _page()
     try:
@@ -144,6 +166,41 @@ def test_send_resume_request_uses_composer_fallback() -> None:
             }"""
         )
         assert result["result"]["sent"] is True
+        assert result["sent"] == "方便发一份你的简历过来吗？"
+    finally:
+        browser.close()
+        playwright.stop()
+
+
+def test_send_resume_request_uses_common_phrase_entry() -> None:
+    playwright, browser, page = _page()
+    try:
+        page.set_viewport_size({"width": 1440, "height": 900})
+        page.set_content(
+            """
+            <button style="position:absolute; left:720px; top:760px;" onclick="document.querySelector('#phrases').style.display='block'">
+              常用语
+            </button>
+            <div id="phrases" style="display:none; position:absolute; left:720px; top:620px; width:360px;">
+              <button onclick="document.querySelector('textarea').value=this.textContent; document.querySelector('textarea').dispatchEvent(new Event('input', { bubbles: true }))">
+                方便发一份你的简历过来吗？
+              </button>
+            </div>
+            <textarea style="position:absolute; left:620px; top:720px; width:520px; height:80px;"></textarea>
+            <button style="position:absolute; left:1180px; top:760px;" onclick="window.sent=document.querySelector('textarea').value">
+              发送
+            </button>
+            """
+        )
+        page.add_script_tag(path=str(EXTRACTOR_PATH))
+        result = page.evaluate(
+            """async () => {
+              const result = await RecruitmentExtractors.sendResumeRequest("方便发一份你的简历过来吗？");
+              return { result, sent: window.sent };
+            }"""
+        )
+        assert result["result"]["sent"] is True
+        assert result["result"]["method"] == "common_phrase"
         assert result["sent"] == "方便发一份你的简历过来吗？"
     finally:
         browser.close()
